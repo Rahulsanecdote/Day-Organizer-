@@ -1,6 +1,6 @@
 // Core data types for the Daily Organization App
 
-export interface TimeSlot {
+export interface TimeRange {
   start: string; // "HH:MM" format
   end: string; // "HH:MM" format
 }
@@ -56,7 +56,7 @@ export interface Habit {
   minimumViableDuration?: number;
   cooldownDays?: number;
   energyLevel: 'low' | 'medium' | 'high';
-  category: 'health' | 'learning' | 'personal' | 'work' | 'creative' | 'social';
+  category: 'work' | 'get-a-job' | 'writing' | 'painting' | 'vibe-coding' | 'phd' | 'o1b' | 'health' | 'learning';
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -95,7 +95,7 @@ export interface GymSettings {
 }
 
 // Scheduled block types
-export type BlockType = 'work' | 'habit' | 'task' | 'meal' | 'gym' | 'break' | 'sleep';
+export type BlockType = 'work' | 'habit' | 'task' | 'meal' | 'gym' | 'break' | 'sleep' | 'appointment' | 'call' | 'other';
 
 export interface ScheduledBlock {
   id: string;
@@ -202,4 +202,35 @@ export interface ParsedScheduleItem {
 export interface ParsedTextInput {
   items: ParsedScheduleItem[];
   unparsedText: string;
+}
+
+// Assistant Layer Types
+
+export interface AssistantLog {
+  id: string;
+  timestamp: number;
+  inputText: string;
+  commandType: string;
+  success: boolean;
+  resultSummary: string;
+}
+
+export interface TomorrowSuggestion {
+  id: string;
+  date: string; // YYYY-MM-DD
+  items: UnscheduledItem[];
+  createdAt: number;
+}
+
+export interface QuestStats {
+  id: string; // usually the date YYYY-MM-DD
+  date: string;
+  xp: number;
+  streak: number;
+  completedCount: number;
+}
+
+export interface FeatureFlag {
+  key: string;
+  enabled: boolean;
 }

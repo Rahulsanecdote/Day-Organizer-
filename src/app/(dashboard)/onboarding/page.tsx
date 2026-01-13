@@ -9,6 +9,7 @@ export default function OnboardingPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importData, setImportData] = useState('');
+  const [isQuestModeEnabled, setIsQuestModeEnabled] = useState(false);
 
   useEffect(() => {
     loadPreferences();
@@ -19,12 +20,20 @@ export default function OnboardingPage() {
     if (prefs) {
       setPreferences(prefs);
     }
+    const questMode = await DatabaseService.getFeatureFlag('enableQuestMode');
+    setIsQuestModeEnabled(questMode);
   };
 
   const handleSavePreferences = async () => {
     if (!preferences) return;
 
     await DatabaseService.savePreferences(preferences);
+    setIsEditing(false);
+    await DatabaseService.savePreferences(preferences);
+
+    // Save Feature Flags
+    await DatabaseService.setFeatureFlag('enableQuestMode', isQuestModeEnabled);
+
     setIsEditing(false);
     alert('Preferences saved successfully!');
   };
@@ -133,7 +142,7 @@ export default function OnboardingPage() {
       {/* Basic Settings */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Settings</h2>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -169,7 +178,7 @@ export default function OnboardingPage() {
       {/* Default Sleep Schedule */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Default Sleep Schedule</h2>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -202,7 +211,7 @@ export default function OnboardingPage() {
       {/* Planning Constraints */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Planning Constraints</h2>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -239,7 +248,7 @@ export default function OnboardingPage() {
       {/* Gym Settings */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Gym Settings</h2>
-        
+
         <div className="space-y-6">
           <div className="flex items-center space-x-3">
             <input
@@ -400,7 +409,7 @@ export default function OnboardingPage() {
       {/* Notification Settings */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</h2>
-        
+
         <div className="space-y-6">
           <div className="flex items-center space-x-3">
             <input
@@ -461,10 +470,33 @@ export default function OnboardingPage() {
         </div>
       </div>
 
+      {/* Assistant & Experimental */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Assistant & Experimental</h2>
+        <div className="space-y-6">
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="quest-mode-enabled"
+              checked={isQuestModeEnabled}
+              onChange={(e) => setIsQuestModeEnabled(e.target.checked)}
+              disabled={!isEditing}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+            />
+            <div>
+              <label htmlFor="quest-mode-enabled" className="text-sm font-medium text-gray-700 block">
+                Enable Quest Mode
+              </label>
+              <p className="text-xs text-gray-500">Turn your daily tasks into a role-playing game with XP and streaks.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Data Management */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Data Management</h2>
-        
+
         <div className="space-y-4">
           <div className="flex flex-wrap gap-4">
             <button
@@ -473,21 +505,21 @@ export default function OnboardingPage() {
             >
               Export All Data
             </button>
-            
+
             <button
               onClick={() => setShowImportModal(true)}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               Import Data
             </button>
-            
+
             <button
               onClick={handleResetToDefaults}
               className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500"
             >
               Reset to Defaults
             </button>
-            
+
             <button
               onClick={handleClearAllData}
               className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -495,7 +527,7 @@ export default function OnboardingPage() {
               Clear All Data
             </button>
           </div>
-          
+
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
             <div className="flex items-start">
               <span className="text-yellow-600 mr-3">⚠️</span>
@@ -511,69 +543,71 @@ export default function OnboardingPage() {
       </div>
 
       {/* Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Import Data</h2>
-                <button
-                  onClick={() => setShowImportModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Paste JSON Data
-                  </label>
-                  <textarea
-                    value={importData}
-                    onChange={(e) => setImportData(e.target.value)}
-                    rows={10}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Paste your exported JSON data here..."
-                  />
+      {
+        showImportModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-gray-900">Import Data</h2>
+                  <button
+                    onClick={() => setShowImportModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
                 </div>
-                
-                <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-                  <div className="flex items-start">
-                    <span className="text-red-600 mr-3">⚠️</span>
-                    <div>
-                      <h4 className="font-medium text-red-900">Warning</h4>
-                      <p className="text-sm text-red-700">
-                        Importing data will merge with existing data. This action cannot be undone.
-                      </p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Paste JSON Data
+                    </label>
+                    <textarea
+                      value={importData}
+                      onChange={(e) => setImportData(e.target.value)}
+                      rows={10}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Paste your exported JSON data here..."
+                    />
+                  </div>
+
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+                    <div className="flex items-start">
+                      <span className="text-red-600 mr-3">⚠️</span>
+                      <div>
+                        <h4 className="font-medium text-red-900">Warning</h4>
+                        <p className="text-sm text-red-700">
+                          Importing data will merge with existing data. This action cannot be undone.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
-                <button
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setImportData('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleImportData}
-                  disabled={!importData.trim()}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300"
-                >
-                  Import Data
-                </button>
+                <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                  <button
+                    onClick={() => {
+                      setShowImportModal(false);
+                      setImportData('');
+                    }}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleImportData}
+                    disabled={!importData.trim()}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300"
+                  >
+                    Import Data
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

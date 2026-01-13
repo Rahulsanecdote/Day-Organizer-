@@ -1,7 +1,7 @@
 // Database schema and operations using Dexie (IndexedDB)
 
 import Dexie, { Table } from 'dexie';
-import { Habit, Task, DailyInput, PlanOutput, UserPreferences, DayHistory } from '@/types';
+import { Habit, Task, DailyInput, PlanOutput, UserPreferences, DayHistory, AssistantLog, TomorrowSuggestion, QuestStats, FeatureFlag } from '@/types';
 
 export class AppDatabase extends Dexie {
   habits!: Table<Habit>;
@@ -11,9 +11,15 @@ export class AppDatabase extends Dexie {
   preferences!: Table<UserPreferences>;
   history!: Table<DayHistory>;
 
+  // Assistant & Quest tables
+  assistantLogs!: Table<AssistantLog>;
+  tomorrowSuggestions!: Table<TomorrowSuggestion>;
+  questStats!: Table<QuestStats>;
+  featureFlags!: Table<FeatureFlag>;
+
   constructor() {
     super('DailyOrganizationDB');
-    
+
     this.version(1).stores({
       habits: 'id, name, category, isActive, createdAt, updatedAt',
       tasks: 'id, title, category, isActive, isCompleted, dueDate, createdAt, updatedAt',
@@ -22,6 +28,14 @@ export class AppDatabase extends Dexie {
       preferences: 'timezone',
       history: 'date'
     });
+
+    // Version 2: Add Assistant & Quest tables
+    this.version(2).stores({
+      assistantLogs: 'id, timestamp, commandType, success',
+      tomorrowSuggestions: 'id, date',
+      questStats: 'id, date',
+      featureFlags: 'key'
+    });
   }
 }
 
@@ -29,9 +43,44 @@ export const db = new AppDatabase();
 
 // Database operations
 export class DatabaseService {
+  // Assistant & Quest Operations
+  static async logAssistantCommand(log: AssistantLog): Promise<void> {
+    await db.assistantLogs.put(log);
+  }
+
+  static async getAssistantLogs(limit: number = 50): Promise<AssistantLog[]> {
+    return await db.assistantLogs.orderBy('timestamp').reverse().limit(limit).toArray();
+  }
+
+  static async saveTomorrowSuggestion(suggestion: TomorrowSuggestion): Promise<void> {
+    await db.tomorrowSuggestions.put(suggestion);
+  }
+
+  static async getTomorrowSuggestion(date: string): Promise<TomorrowSuggestion | undefined> {
+    return await db.tomorrowSuggestions.get({ date });
+  }
+
+  static async saveQuestStats(stats: QuestStats): Promise<void> {
+    await db.questStats.put(stats);
+  }
+
+  static async getQuestStats(date: string): Promise<QuestStats | undefined> {
+    return await db.questStats.get({ date });
+  }
+
+  static async setFeatureFlag(key: string, enabled: boolean): Promise<void> {
+    await db.featureFlags.put({ key, enabled });
+  }
+
+  static async getFeatureFlag(key: string): Promise<boolean> {
+    const flag = await db.featureFlags.get(key);
+    return flag ? flag.enabled : false;
+  }
+
   // Habits operations
   static async getAllHabits(): Promise<Habit[]> {
-    return await db.habits.where('isActive').equals(true).toArray();
+    // Avoid boolean indexes (not valid IndexedDB keys); filter in JS instead
+    return await db.habits.filter(habit => habit.isActive !== false).toArray();
   }
 
   static async getHabit(id: string): Promise<Habit | undefined> {
@@ -102,7 +151,7 @@ export class DatabaseService {
 
   // Tasks operations
   static async getAllTasks(): Promise<Task[]> {
-    return await db.tasks.where('isActive').equals(true).toArray();
+    return await db.tasks.filter(task => task.isActive !== false).toArray();
   }
 
   static async getTask(id: string): Promise<Task | undefined> {
@@ -118,7 +167,7 @@ export class DatabaseService {
   }
 
   static async completeTask(id: string): Promise<void> {
-    await db.tasks.update(id, { 
+    await db.tasks.update(id, {
       isCompleted: true,
       updatedAt: new Date().toISOString()
     });
@@ -275,6 +324,10 @@ export class DatabaseService {
     const plans = await db.plans.toArray();
     const preferences = await db.preferences.toArray();
     const history = await db.history.toArray();
+    const assistantLogs = await db.assistantLogs.toArray();
+    const tomorrowSuggestions = await db.tomorrowSuggestions.toArray();
+    const questStats = await db.questStats.toArray();
+    const featureFlags = await db.featureFlags.toArray();
 
     return JSON.stringify({
       habits,
@@ -283,20 +336,28 @@ export class DatabaseService {
       plans,
       preferences,
       history,
+      assistantLogs,
+      tomorrowSuggestions,
+      questStats,
+      featureFlags,
       exportDate: new Date().toISOString(),
     });
   }
 
   static async importData(jsonData: string): Promise<void> {
     const data = JSON.parse(jsonData);
-    
-    await db.transaction('rw', db.habits, db.tasks, db.dailyInputs, db.plans, db.preferences, db.history, async () => {
+
+    await db.transaction('rw', [db.habits, db.tasks, db.dailyInputs, db.plans, db.preferences, db.history, db.assistantLogs, db.tomorrowSuggestions, db.questStats, db.featureFlags], async () => {
       if (data.habits) await db.habits.bulkPut(data.habits);
       if (data.tasks) await db.tasks.bulkPut(data.tasks);
       if (data.dailyInputs) await db.dailyInputs.bulkPut(data.dailyInputs);
       if (data.plans) await db.plans.bulkPut(data.plans);
       if (data.preferences) await db.preferences.bulkPut(data.preferences);
       if (data.history) await db.history.bulkPut(data.history);
+      if (data.assistantLogs) await db.assistantLogs.bulkPut(data.assistantLogs);
+      if (data.tomorrowSuggestions) await db.tomorrowSuggestions.bulkPut(data.tomorrowSuggestions);
+      if (data.questStats) await db.questStats.bulkPut(data.questStats);
+      if (data.featureFlags) await db.featureFlags.bulkPut(data.featureFlags);
     });
   }
 }
@@ -304,11 +365,11 @@ export class DatabaseService {
 // Initialize database with default data
 export async function initializeDatabase(): Promise<void> {
   await db.open();
-  
+
   // Seed default data if needed
   await DatabaseService.seedDefaultHabits();
   await DatabaseService.seedDefaultTasks();
-  
+
   // Set default preferences if none exist
   const existingPrefs = await DatabaseService.getPreferences();
   if (!existingPrefs) {

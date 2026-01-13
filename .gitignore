@@ -48,3 +48,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+.home/
