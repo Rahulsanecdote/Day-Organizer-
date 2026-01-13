@@ -131,37 +131,43 @@ The scheduling engine implements a multi-factor scoring system:
 
 1. **Navigate to project directory:**
    ```bash
-   cd /workspace/daily-organization-app
+   cd /Users/rahulsikinam/Desktop/daily-organization-app
    ```
 
-2. **Start the development server:**
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server:**
    ```bash
    npm run dev
    ```
 
-3. **Open browser:**
+4. **Open browser:**
    Navigate to `http://localhost:3000`
 
 ## 📁 Key Files Created
 
 ### **Core Logic**
-- <filepath>src/types/index.ts</filepath> - Complete TypeScript definitions
-- <filepath>src/lib/scheduling-engine.ts</filepath> - Advanced scheduling algorithm (614 lines)
-- <filepath>src/lib/database.ts</filepath> - IndexedDB operations with seeding (318 lines)
+- `src/types/index.ts` - Complete TypeScript definitions
+- `src/lib/scheduling-engine.ts` - Scheduling algorithm
+- `src/lib/database.ts` - IndexedDB operations with seeding
 
 ### **UI Screens**
-- <filepath>src/app/layout.tsx</filepath> - Main app layout with navigation
-- <filepath>src/app/today-setup/page.tsx</filepath> - Daily input with 2 modes (409 lines)
-- <filepath>src/app/plan/page.tsx</filepath> - Timeline with drag-drop (387 lines)
-- <filepath>src/app/habits/page.tsx</filepath> - Habit management (555 lines)
-- <filepath>src/app/tasks/page.tsx</filepath> - Task management (564 lines)
-- <filepath>src/app/history/page.tsx</filepath> - Analytics dashboard (415 lines)
-- <filepath>src/app/onboarding/page.tsx</filepath> - Settings and configuration (579 lines)
+- `src/app/layout.tsx` - Root app layout
+- `src/app/(dashboard)/layout.tsx` - Dashboard layout and navigation
+- `src/app/(dashboard)/today-setup/page.tsx` - Daily input with 2 modes
+- `src/app/(dashboard)/plan/page.tsx` - Timeline with drag-drop
+- `src/app/(dashboard)/habits/page.tsx` - Habit management
+- `src/app/(dashboard)/tasks/page.tsx` - Task management
+- `src/app/(dashboard)/history/page.tsx` - Analytics dashboard
+- `src/app/(dashboard)/onboarding/page.tsx` - Settings and configuration
 
 ### **Testing & Documentation**
-- <filepath>src/__tests__/scheduling-engine.test.ts</filepath> - Comprehensive unit tests
-- <filepath>src/utils/timeUtils.ts</filepath> - Time manipulation utilities
-- <filepath>README.md</filepath> - Complete documentation with examples
+- `src/__tests__/scheduling-engine.test.ts` - Unit tests for scheduling engine
+- `src/utils/timeUtils.ts` - Time manipulation utilities
+- `README.md` - Documentation with examples
 
 ## 🎯 Production-Ready Features
 

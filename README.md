@@ -1,4 +1,4 @@
-# Day-Organizer-
+# Daily Organization App
 
 A production-ready web application that helps you plan your perfect day by automatically scheduling your habits, tasks, and gym sessions around your work schedule and fixed commitments.
 
@@ -42,7 +42,7 @@ A production-ready web application that helps you plan your perfect day by autom
 - **Database**: IndexedDB with Dexie (local-first storage)
 - **State Management**: React hooks
 - **Date Handling**: date-fns
-- **Testing**: Jest with React Testing Library
+- **Testing**: Jest (unit tests)
 
 ### Core Components
 
@@ -186,12 +186,12 @@ When no perfect slot exists:
 - Work: 9:30am-6:00pm
 - Dinner: 7:00pm-8:00pm
 - Sleep: 11:30pm-7:30am
-- 3 habits, 2 tasks, gym enabled
+- 3 habits, 3 tasks, gym enabled
 
 **Algorithm decisions:**
-1. **Gym**: 6:20pm-7:20pm (after work, before dinner buffer)
-2. **Morning habits**: 7:30am-8:30am (before work)
-3. **High-priority task**: 8:30pm-9:00pm (evening energy match)
+1. **Gym**: 8:10pm-9:10pm (after dinner; after-work slot blocked by dinner + buffers)
+2. **Morning habits**: 7:30am-8:45am (before work)
+3. **High-priority task**: 9:20pm-9:50pm (evening energy match)
 4. **Low-priority task**: Moved to tomorrow (insufficient time)
 
 ## 🧪 Testing
@@ -236,20 +236,26 @@ npm run test:watch
 {
   "date": "2024-01-15",
   "blocks": [
-    {"title": "Gym", "start": "18:20", "end": "19:20", "type": "habit", "locked": false},
-    {"title": "Task: Review emails", "start": "20:10", "end": "20:40", "type": "task", "locked": false}
+    {"title": "Morning Meditation", "start": "07:30", "end": "07:45", "type": "habit", "locked": false},
+    {"title": "Stretching", "start": "07:55", "end": "08:15", "type": "habit", "locked": false},
+    {"title": "Journaling", "start": "08:25", "end": "08:45", "type": "habit", "locked": false},
+    {"title": "Work", "start": "09:30", "end": "18:00", "type": "work", "locked": true},
+    {"title": "Dinner", "start": "19:00", "end": "20:00", "type": "meal", "locked": true},
+    {"title": "Gym Workout", "start": "20:10", "end": "21:10", "type": "gym", "locked": false},
+    {"title": "Task: Review emails", "start": "21:20", "end": "21:50", "type": "task", "locked": false},
+    {"title": "Task: Prepare report", "start": "22:00", "end": "22:45", "type": "task", "locked": false}
   ],
   "unscheduled": [
     {"title": "Task: Deep study", "reason": "Insufficient contiguous time"}
   ],
-  "explanation": "Gym placed after work before dinner buffer; urgent tasks placed in evening; maintained 10-min buffers.",
+  "explanation": "Gym placed after dinner to respect buffers; tasks placed in the late evening; maintained 10-min buffers.",
   "stats": {
     "workHours": 8.5,
     "gymMinutes": 60,
     "habitsCompleted": 3,
     "tasksCompleted": 2,
-    "focusBlocks": 1,
-    "freeTimeRemaining": 45
+    "focusBlocks": 0,
+    "freeTimeRemaining": 200
   }
 }
 ```
@@ -281,7 +287,7 @@ npm run test:watch
 
 ### Adding New Habit Categories
 1. Update the `Habit['category']` type in `src/types/index.ts`
-2. Add corresponding icon in `src/app/habits/page.tsx`
+2. Add corresponding icon in `src/app/(dashboard)/habits/page.tsx`
 3. Update the seeding logic in `src/lib/database.ts`
 
 ### Modifying the Scoring Algorithm
