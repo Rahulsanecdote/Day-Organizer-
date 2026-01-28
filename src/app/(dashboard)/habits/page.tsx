@@ -1,24 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { DatabaseService } from '@/lib/database';
+import { useState, useEffect, useCallback } from 'react';
+import { DataService } from '@/lib/sync/DataService';
 import { Habit } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function HabitsPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Partial<Habit> | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadHabits = useCallback(async () => {
+    try {
+      const allHabits = await DataService.getAllHabits();
+      setHabits(allHabits);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadHabits();
-  }, []);
-
-  const loadHabits = async () => {
-    const allHabits = await DatabaseService.getAllHabits();
-    setHabits(allHabits);
-  };
+  }, [loadHabits]);
 
   const handleAddHabit = () => {
     setEditingHabit({
@@ -32,13 +37,11 @@ export default function HabitsPage() {
       isActive: true,
     });
     setShowForm(true);
-    setIsEditing(true);
   };
 
   const handleEditHabit = (habit: Habit) => {
     setEditingHabit({ ...habit });
     setShowForm(true);
-    setIsEditing(true);
   };
 
   const handleSaveHabit = async () => {
@@ -47,44 +50,48 @@ export default function HabitsPage() {
       return;
     }
 
-    const habit: Habit = {
-      id: editingHabit.id || uuidv4(),
-      name: editingHabit.name.trim(),
-      duration: editingHabit.duration || 30,
-      frequency: editingHabit.frequency || 'daily',
-      specificDays: editingHabit.specificDays,
-      timesPerWeek: editingHabit.timesPerWeek,
-      preferredTimeWindow: editingHabit.preferredTimeWindow,
-      explicitStartTime: editingHabit.explicitStartTime,
-      explicitEndTime: editingHabit.explicitEndTime,
-      priority: editingHabit.priority || 3,
-      flexibility: editingHabit.flexibility || 'flexible',
-      minimumViableDuration: editingHabit.minimumViableDuration,
-      cooldownDays: editingHabit.cooldownDays,
-      energyLevel: editingHabit.energyLevel || 'medium',
-      category: editingHabit.category || 'work',
-      isActive: editingHabit.isActive ?? true,
-      createdAt: editingHabit.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    setIsSaving(true);
+    try {
+      const habit: Habit = {
+        id: editingHabit.id || uuidv4(),
+        name: editingHabit.name.trim(),
+        duration: editingHabit.duration || 30,
+        frequency: editingHabit.frequency || 'daily',
+        specificDays: editingHabit.specificDays,
+        timesPerWeek: editingHabit.timesPerWeek,
+        preferredTimeWindow: editingHabit.preferredTimeWindow,
+        explicitStartTime: editingHabit.explicitStartTime,
+        explicitEndTime: editingHabit.explicitEndTime,
+        priority: editingHabit.priority || 3,
+        flexibility: editingHabit.flexibility || 'flexible',
+        minimumViableDuration: editingHabit.minimumViableDuration,
+        cooldownDays: editingHabit.cooldownDays,
+        energyLevel: editingHabit.energyLevel || 'medium',
+        category: editingHabit.category || 'work',
+        isActive: editingHabit.isActive ?? true,
+        createdAt: editingHabit.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    await DatabaseService.saveHabit(habit);
-    await loadHabits();
+      await DataService.saveHabit(habit);
+      await loadHabits();
 
-    setShowForm(false);
-    setIsEditing(false);
-    setEditingHabit(null);
+      setShowForm(false);
+      setEditingHabit(null);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteHabit = async (habit: Habit) => {
     if (confirm(`Are you sure you want to delete "${habit.name}"?`)) {
-      await DatabaseService.deleteHabit(habit.id);
+      await DataService.deleteHabit(habit.id);
       await loadHabits();
     }
   };
 
   const handleToggleActive = async (habit: Habit) => {
-    await DatabaseService.saveHabit({
+    await DataService.saveHabit({
       ...habit,
       isActive: !habit.isActive,
       updatedAt: new Date().toISOString(),
@@ -195,6 +202,43 @@ export default function HabitsPage() {
     return styles[category] || styles.work;
   };
 
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Skeleton Header */}
+        <div
+          className="rounded-xl p-8 animate-pulse"
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <div className="h-8 w-40 rounded" style={{ background: 'var(--color-ivory)' }} />
+          <div className="h-4 w-64 rounded mt-2" style={{ background: 'var(--color-ivory)' }} />
+        </div>
+        {/* Skeleton Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl p-6 animate-pulse"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg" style={{ background: 'var(--color-ivory)' }} />
+                <div className="h-5 w-24 rounded" style={{ background: 'var(--color-ivory)' }} />
+              </div>
+              <div className="h-3 w-32 rounded" style={{ background: 'var(--color-ivory)' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Header */}
@@ -272,6 +316,7 @@ export default function HabitsPage() {
                       color: habit.isActive ? 'var(--color-gym)' : 'var(--color-mist)'
                     }}
                     title={habit.isActive ? 'Deactivate' : 'Activate'}
+                    aria-label={habit.isActive ? 'Deactivate habit' : 'Activate habit'}
                   >
                     {habit.isActive ? (
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -288,6 +333,7 @@ export default function HabitsPage() {
                     className="p-2 rounded-lg transition-colors"
                     style={{ color: 'var(--color-mist)' }}
                     title="Edit"
+                    aria-label="Edit habit"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
@@ -298,6 +344,7 @@ export default function HabitsPage() {
                     className="p-2 rounded-lg transition-colors"
                     style={{ color: 'var(--color-mist)' }}
                     title="Delete"
+                    aria-label="Delete habit"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -417,11 +464,11 @@ export default function HabitsPage() {
                 <button
                   onClick={() => {
                     setShowForm(false);
-                    setIsEditing(false);
                     setEditingHabit(null);
                   }}
                   className="p-2 rounded-lg transition-colors"
                   style={{ color: 'var(--color-mist)' }}
+                  aria-label="Close form"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -433,10 +480,12 @@ export default function HabitsPage() {
                 {/* Basic Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-name" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Habit Name *
                     </label>
                     <input
+                      id="habit-name"
+                      name="habit-name"
                       type="text"
                       value={editingHabit.name || ''}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, name: e.target.value }))}
@@ -447,10 +496,12 @@ export default function HabitsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-category" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Category
                     </label>
                     <select
+                      id="habit-category"
+                      name="habit-category"
                       value={editingHabit.category || 'work'}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, category: e.target.value as Habit['category'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -472,10 +523,12 @@ export default function HabitsPage() {
                 {/* Duration and Frequency */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-duration" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Duration (minutes)
                     </label>
                     <input
+                      id="habit-duration"
+                      name="habit-duration"
                       type="number"
                       min="5"
                       max="240"
@@ -487,10 +540,12 @@ export default function HabitsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-frequency" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Frequency
                     </label>
                     <select
+                      id="habit-frequency"
+                      name="habit-frequency"
                       value={editingHabit.frequency || 'daily'}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, frequency: e.target.value as Habit['frequency'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -541,10 +596,12 @@ export default function HabitsPage() {
 
                 {editingHabit.frequency === 'x-times-per-week' && (
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-times-per-week" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Times Per Week
                     </label>
                     <input
+                      id="habit-times-per-week"
+                      name="habit-times-per-week"
                       type="number"
                       min="1"
                       max="7"
@@ -559,10 +616,12 @@ export default function HabitsPage() {
                 {/* Priority and Energy */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-priority" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Priority
                     </label>
                     <select
+                      id="habit-priority"
+                      name="habit-priority"
                       value={editingHabit.priority || 3}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, priority: parseInt(e.target.value) as Habit['priority'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -577,10 +636,12 @@ export default function HabitsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-energy" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Energy Level
                     </label>
                     <select
+                      id="habit-energy"
+                      name="habit-energy"
                       value={editingHabit.energyLevel || 'medium'}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, energyLevel: e.target.value as Habit['energyLevel'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -593,10 +654,12 @@ export default function HabitsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="habit-flexibility" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Flexibility
                     </label>
                     <select
+                      id="habit-flexibility"
+                      name="habit-flexibility"
                       value={editingHabit.flexibility || 'flexible'}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, flexibility: e.target.value as Habit['flexibility'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -611,10 +674,12 @@ export default function HabitsPage() {
 
                 {/* Time Preference */}
                 <div>
-                  <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                  <label htmlFor="habit-preferred-window" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                     Preferred Time Window
                   </label>
                   <select
+                    id="habit-preferred-window"
+                    name="habit-preferred-window"
                     value={editingHabit.preferredTimeWindow || ''}
                     onChange={(e) => setEditingHabit(prev => ({ ...prev, preferredTimeWindow: e.target.value as Habit['preferredTimeWindow'] || undefined }))}
                     className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -637,7 +702,6 @@ export default function HabitsPage() {
                 <button
                   onClick={() => {
                     setShowForm(false);
-                    setIsEditing(false);
                     setEditingHabit(null);
                   }}
                   className="px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200"
@@ -651,14 +715,17 @@ export default function HabitsPage() {
                 </button>
                 <button
                   onClick={handleSaveHabit}
+                  disabled={isSaving}
                   className="px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200"
                   style={{
-                    background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
-                    color: 'white',
-                    boxShadow: '0 2px 8px rgba(184, 151, 107, 0.3)'
+                    background: isSaving
+                      ? 'var(--color-ivory)'
+                      : 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
+                    color: isSaving ? 'var(--color-mist)' : 'white',
+                    boxShadow: isSaving ? 'none' : '0 2px 8px rgba(184, 151, 107, 0.3)'
                   }}
                 >
-                  {editingHabit.id ? 'Update' : 'Create'} Habit
+                  {isSaving ? 'Saving...' : (editingHabit.id ? 'Update' : 'Create') + ' Habit'}
                 </button>
               </div>
             </div>

@@ -12,6 +12,17 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Editor and IDE directories (prevents OOM from linting VS Code extensions)
+    ".home/**",
+    ".vscode/**",
+    ".idea/**",
+    // Other common directories to exclude
+    "node_modules/**",
+    "coverage/**",
+    "dist/**",
+    "*.config.js",
+    "*.config.mjs",
+    "*.config.cjs",
   ]),
 ]);
 

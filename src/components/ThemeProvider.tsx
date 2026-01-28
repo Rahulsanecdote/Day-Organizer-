@@ -7,48 +7,73 @@ type Theme = 'light' | 'dark';
 interface ThemeContextType {
     theme: Theme;
     toggleTheme: () => void;
+    setTheme: (theme: Theme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+/**
+ * Helper to get the current theme from DOM (set by blocking script in layout.tsx)
+ * This ensures React state matches what the blocking script already applied
+ */
+function getInitialTheme(): Theme {
+    if (typeof window === 'undefined') return 'light';
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setTheme] = useState<Theme>('light');
+    // Initialize from DOM state (already set by blocking script)
+    const [theme, setThemeState] = useState<Theme>('light');
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => {
-        // Check local storage or system preference on mount
-        const savedTheme = localStorage.getItem('theme') as Theme;
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-        if (savedTheme) {
-            setTheme(savedTheme);
-        } else if (systemPrefersDark) {
-            setTheme('dark');
-        }
-        setMounted(true);
-    }, []);
-
-    useEffect(() => {
-        if (!mounted) return;
-
-        if (theme === 'dark') {
+    const applyTheme = (newTheme: Theme) => {
+        if (newTheme === 'dark') {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
         }
-        localStorage.setItem('theme', theme);
-    }, [theme, mounted]);
-
-    const toggleTheme = () => {
-        setTheme(prev => prev === 'light' ? 'dark' : 'light');
+        localStorage.setItem('theme', newTheme);
     };
 
-    // Prevent hydration mismatch by returning null until mounted if checking server/client match isn't possible
-    // However, simpler approach for now is just return children but with potential flash. 
-    // Better approach: use Script to set class early, but for this app useEffect is fine.
+    useEffect(() => {
+        // Sync React state with what the blocking script already set
+        const currentTheme = getInitialTheme();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setThemeState(currentTheme);
+        setMounted(true);
+
+        // Listen for system preference changes
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = (e: MediaQueryListEvent) => {
+            const savedTheme = localStorage.getItem('theme') as Theme | null;
+            // Only auto-switch if user hasn't explicitly set a preference
+            if (!savedTheme) {
+                const newTheme = e.matches ? 'dark' : 'light';
+                setThemeState(newTheme);
+                applyTheme(newTheme);
+            }
+        };
+
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, []);
+
+
+
+    const setTheme = (newTheme: Theme) => {
+        setThemeState(newTheme);
+        if (mounted) {
+            applyTheme(newTheme);
+        }
+    };
+
+    const toggleTheme = () => {
+        const newTheme = theme === 'light' ? 'dark' : 'light';
+        setTheme(newTheme);
+    };
 
     return (
-        <ThemeContext.Provider value={{ theme, toggleTheme }}>
+        <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
             {children}
         </ThemeContext.Provider>
     );
@@ -61,3 +86,4 @@ export function useTheme() {
     }
     return context;
 }
+

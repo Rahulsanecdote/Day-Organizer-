@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
-import { DatabaseService } from '@/lib/database';
+import { DataService } from '@/lib/sync/DataService';
+import { logger } from '@/lib/logger';
 import { parseTextInput } from '@/lib/scheduling-engine';
 import { DailyInput, FixedEvent, UserPreferences } from '@/types';
 
@@ -25,16 +26,15 @@ export default function TodaySetupPage() {
   const [textInput, setTextInput] = useState('');
   const [inputMode, setInputMode] = useState<'form' | 'text'>('form');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [newEvent, setNewEvent] = useState<Omit<FixedEvent, 'title' | 'start' | 'end'>>({
+  const [newEvent, setNewEvent] = useState<Omit<FixedEvent, 'title' | 'start' | 'end'> & { title: string; start: string; end: string }>({
     type: 'work',
+    title: '',
+    start: '',
+    end: '',
   });
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
-
-  const loadUserData = async () => {
-    const prefs = await DatabaseService.getPreferences();
+  const loadUserData = useCallback(async () => {
+    const prefs = await DataService.getPreferences();
     if (prefs) {
       setPreferences(prefs);
       setDailyInput(prev => ({
@@ -50,34 +50,40 @@ export default function TodaySetupPage() {
       }));
     }
 
-    const existingInput = await DatabaseService.getDailyInput(
+    const existingInput = await DataService.getDailyInput(
       dailyInput.date,
       dailyInput.timezone
     );
     if (existingInput) {
       setDailyInput(existingInput);
     }
-  };
+  }, [dailyInput.date, dailyInput.timezone]);
+
+  useEffect(() => {
+    loadUserData();
+  }, [loadUserData]);
 
   const handleAddEvent = () => {
-    const title = prompt('Event title:');
-    if (!title) return;
-
-    const startTime = prompt('Start time (HH:MM):');
-    const endTime = prompt('End time (HH:MM):');
-
-    if (!startTime || !endTime) return;
+    if (!newEvent.title || !newEvent.start || !newEvent.end) return;
 
     const event: FixedEvent = {
-      title,
-      start: startTime,
-      end: endTime,
-      type: newEvent.type,
+      title: newEvent.title,
+      start: newEvent.start,
+      end: newEvent.end,
+      type: newEvent.type as FixedEvent['type'],
     };
 
     setDailyInput(prev => ({
       ...prev,
       fixedEvents: [...prev.fixedEvents, event],
+    }));
+
+    // Reset form
+    setNewEvent(prev => ({
+      ...prev,
+      title: '',
+      start: '',
+      end: '',
     }));
   };
 
@@ -110,10 +116,10 @@ export default function TodaySetupPage() {
     setIsGenerating(true);
 
     try {
-      await DatabaseService.saveDailyInput(dailyInput);
+      await DataService.saveDailyInput(dailyInput);
 
-      const habits = await DatabaseService.getAllHabits();
-      const tasks = await DatabaseService.getAllTasks();
+      const habits = await DataService.getAllHabits();
+      const tasks = await DataService.getAllTasks();
 
       if (preferences) {
         const { SchedulingEngine } = await import('@/lib/scheduling-engine');
@@ -125,12 +131,12 @@ export default function TodaySetupPage() {
           preferences
         );
         const plan = scheduler.generatePlan();
-        await DatabaseService.savePlan(plan);
+        await DataService.savePlan(plan);
 
         window.location.href = '/plan';
       }
     } catch (error) {
-      console.error('Failed to generate plan:', error);
+      logger.error('Failed to generate plan', { error: String(error) });
       alert('Failed to generate plan. Please try again.');
     } finally {
       setIsGenerating(false);
@@ -200,7 +206,7 @@ export default function TodaySetupPage() {
             color: 'var(--color-charcoal)'
           }}
         >
-          Today's Setup
+          Today&apos;s Setup
         </h1>
         <p style={{ color: 'var(--color-slate)', lineHeight: 1.6 }}>
           Enter your work schedule and commitments to generate an optimized daily plan.
@@ -229,13 +235,15 @@ export default function TodaySetupPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label
+            <label htmlFor="setup-date"
               className="block text-xs uppercase tracking-wider mb-2"
               style={{ color: 'var(--color-mist)' }}
             >
               Date
             </label>
             <input
+              id="setup-date"
+              name="setup-date"
               type="date"
               value={dailyInput.date}
               onChange={(e) => setDailyInput(prev => ({ ...prev, date: e.target.value }))}
@@ -249,13 +257,15 @@ export default function TodaySetupPage() {
           </div>
 
           <div>
-            <label
+            <label htmlFor="setup-timezone"
               className="block text-xs uppercase tracking-wider mb-2"
               style={{ color: 'var(--color-mist)' }}
             >
               Timezone
             </label>
             <input
+              id="setup-timezone"
+              name="setup-timezone"
               type="text"
               value={dailyInput.timezone}
               onChange={(e) => setDailyInput(prev => ({ ...prev, timezone: e.target.value }))}
@@ -299,13 +309,15 @@ export default function TodaySetupPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label
+            <label htmlFor="setup-bedtime"
               className="block text-xs uppercase tracking-wider mb-2"
               style={{ color: 'var(--color-mist)' }}
             >
               Bedtime
             </label>
             <input
+              id="setup-bedtime"
+              name="setup-bedtime"
               type="time"
               value={dailyInput.sleep.start}
               onChange={(e) => handleSleepChange('start', e.target.value)}
@@ -319,13 +331,15 @@ export default function TodaySetupPage() {
           </div>
 
           <div>
-            <label
+            <label htmlFor="setup-wake-time"
               className="block text-xs uppercase tracking-wider mb-2"
               style={{ color: 'var(--color-mist)' }}
             >
               Wake Time
             </label>
             <input
+              id="setup-wake-time"
+              name="setup-wake-time"
               type="time"
               value={dailyInput.sleep.end}
               onChange={(e) => handleSleepChange('end', e.target.value)}
@@ -369,13 +383,15 @@ export default function TodaySetupPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label
+            <label htmlFor="setup-buffer"
               className="block text-xs uppercase tracking-wider mb-2"
               style={{ color: 'var(--color-mist)' }}
             >
               Buffer Between Blocks (minutes)
             </label>
             <input
+              id="setup-buffer"
+              name="setup-buffer"
               type="number"
               min="5"
               max="30"
@@ -391,13 +407,15 @@ export default function TodaySetupPage() {
           </div>
 
           <div>
-            <label
+            <label htmlFor="setup-downtime"
               className="block text-xs uppercase tracking-wider mb-2"
               style={{ color: 'var(--color-mist)' }}
             >
               Protect Downtime (minutes)
             </label>
             <input
+              id="setup-downtime"
+              name="setup-downtime"
               type="number"
               min="0"
               max="120"
@@ -461,15 +479,40 @@ export default function TodaySetupPage() {
 
         {inputMode === 'form' ? (
           <div className="space-y-4">
-            <div className="flex gap-4 items-end">
-              <div className="flex-1">
-                <label
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="event-title"
+                  className="block text-xs uppercase tracking-wider mb-2"
+                  style={{ color: 'var(--color-mist)' }}
+                >
+                  Event Title
+                </label>
+                <input
+                  id="event-title"
+                  name="event-title"
+                  type="text"
+                  value={newEvent.title}
+                  onChange={(e) => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g., Morning Meeting"
+                  className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none transition-all duration-200"
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-charcoal)'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="event-type"
                   className="block text-xs uppercase tracking-wider mb-2"
                   style={{ color: 'var(--color-mist)' }}
                 >
                   Event Type
                 </label>
                 <select
+                  id="event-type"
+                  name="event-type"
                   value={newEvent.type}
                   onChange={(e) => setNewEvent(prev => ({ ...prev, type: e.target.value as FixedEvent['type'] }))}
                   className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none transition-all duration-200"
@@ -486,14 +529,68 @@ export default function TodaySetupPage() {
                   <option value="other">Other</option>
                 </select>
               </div>
+            </div>
+
+            <div className="flex gap-4 items-end">
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="event-start"
+                    className="block text-xs uppercase tracking-wider mb-2"
+                    style={{ color: 'var(--color-mist)' }}
+                  >
+                    Start Time
+                  </label>
+                  <input
+                    id="event-start"
+                    name="event-start"
+                    type="time"
+                    value={newEvent.start}
+                    onChange={(e) => setNewEvent(prev => ({ ...prev, start: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none transition-all duration-200"
+                    style={{
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-charcoal)'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="event-end"
+                    className="block text-xs uppercase tracking-wider mb-2"
+                    style={{ color: 'var(--color-mist)' }}
+                  >
+                    End Time
+                  </label>
+                  <input
+                    id="event-end"
+                    name="event-end"
+                    type="time"
+                    value={newEvent.end}
+                    onChange={(e) => setNewEvent(prev => ({ ...prev, end: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none transition-all duration-200"
+                    style={{
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-charcoal)'
+                    }}
+                  />
+                </div>
+              </div>
 
               <button
                 onClick={handleAddEvent}
+                disabled={!newEvent.title || !newEvent.start || !newEvent.end}
                 className="px-6 py-3 rounded-lg font-medium text-sm transition-all duration-200"
                 style={{
-                  background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
-                  color: 'white',
-                  boxShadow: '0 2px 8px rgba(184, 151, 107, 0.3)'
+                  background: (!newEvent.title || !newEvent.start || !newEvent.end)
+                    ? 'var(--color-ivory)'
+                    : 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
+                  color: (!newEvent.title || !newEvent.start || !newEvent.end)
+                    ? 'var(--color-mist)'
+                    : 'white',
+                  boxShadow: (!newEvent.title || !newEvent.start || !newEvent.end)
+                    ? 'none'
+                    : '0 2px 8px rgba(184, 151, 107, 0.3)'
                 }}
               >
                 Add Event
@@ -503,13 +600,15 @@ export default function TodaySetupPage() {
         ) : (
           <div className="space-y-4">
             <div>
-              <label
+              <label htmlFor="schedule-text"
                 className="block text-xs uppercase tracking-wider mb-2"
                 style={{ color: 'var(--color-mist)' }}
               >
                 Paste Schedule Text
               </label>
               <textarea
+                id="schedule-text"
+                name="schedule-text"
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
                 placeholder="Work 9:30am-6pm; Lunch 12-1; Dinner 7-8"
@@ -525,7 +624,7 @@ export default function TodaySetupPage() {
                 className="text-xs mt-2"
                 style={{ color: 'var(--color-mist)' }}
               >
-                Format: "Event HH:MM-HH:MM" or "Event HH:MMam-HH:MMpm"
+                Format: &quot;Event HH:MM-HH:MM&quot; or &quot;Event HH:MMam-HH:MMpm&quot;
               </p>
             </div>
             <button
@@ -598,6 +697,7 @@ export default function TodaySetupPage() {
                       onClick={() => handleRemoveEvent(index)}
                       className="p-2 rounded-lg transition-all duration-200"
                       style={{ color: 'var(--color-mist)' }}
+                      aria-label="Remove event"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />

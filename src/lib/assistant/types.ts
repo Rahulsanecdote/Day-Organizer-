@@ -12,10 +12,20 @@ export type CommandType =
     | 'STATUS'
     | 'UNKNOWN';
 
+// Union of all possible command argument types
+export type CommandArgs =
+    | TodayWorkArgs
+    | TodayFixedArgs
+    | PasteScheduleArgs
+    | AddHabitArgs
+    | AddTaskArgs
+    | LockArgs
+    | Record<string, string | number | boolean>;
+
 export interface Command {
     type: CommandType;
     raw: string;
-    args?: Record<string, any>;
+    args?: CommandArgs;
 }
 
 export interface ParseResult {
@@ -25,10 +35,19 @@ export interface ParseResult {
     suggestions?: string[];
 }
 
+// Execution data can be various types based on command
+export type ExecutionData =
+    | { habits?: unknown[]; tasks?: unknown[] }
+    | { plan?: unknown }
+    | { exported?: string }
+    | { action?: 'TRIGGER_PLAN' }
+    | string
+    | null;
+
 export interface ExecutionResult {
     success: boolean;
     message: string;
-    data?: any;
+    data?: ExecutionData;
     undoable?: boolean; // If true, we might store a reverse action (not implemented in v1)
 }
 

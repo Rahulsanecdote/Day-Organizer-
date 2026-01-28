@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Explicitly set project root to prevent Next.js from detecting parent lockfiles
+  turbopack: {
+    root: '.',
+  },
 };
 
 export default nextConfig;

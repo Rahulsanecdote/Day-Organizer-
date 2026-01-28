@@ -1,5 +1,4 @@
 import {
-    Command,
     ParseResult,
     CommandType,
     TodayWorkArgs,
@@ -8,8 +7,10 @@ import {
     AddTaskArgs,
     LockArgs
 } from './types';
+import { parseWithAI } from './ai-parser';
 
 export class AssistantParser {
+    // Synchronous parsing using regex patterns
     static parse(input: string): ParseResult {
         const text = input.trim();
         if (!text) return { success: false, error: 'Empty input' };
@@ -105,14 +106,14 @@ export class AssistantParser {
         // Extract Priority p1-p5
         const pMatch = remaining.match(/\bp([1-5])\b/);
         if (pMatch) {
-            priority = parseInt(pMatch[1]) as any;
+            priority = parseInt(pMatch[1]) as 1 | 2 | 3 | 4 | 5;
             remaining = remaining.replace(pMatch[0], '');
         }
 
         // Extract Energy
         const eMatch = remaining.match(/\benergy\s+(low|medium|high)\b/i);
         if (eMatch) {
-            energy = eMatch[1].toLowerCase() as any;
+            energy = eMatch[1].toLowerCase() as 'low' | 'medium' | 'high';
             remaining = remaining.replace(eMatch[0], '');
         }
 
@@ -160,7 +161,7 @@ export class AssistantParser {
         let window: AddHabitArgs['window'] | undefined;
         const winMatch = remaining.match(/\b(morning|afternoon|evening)\b/i);
         if (winMatch) {
-            window = winMatch[1].toLowerCase() as any;
+            window = winMatch[1].toLowerCase() as 'morning' | 'afternoon' | 'evening';
             remaining = remaining.replace(winMatch[0], '');
         }
 
@@ -177,5 +178,33 @@ export class AssistantParser {
 
         const args: AddHabitArgs = { name, duration, frequency, window };
         return { success: true, command: { type: 'ADD_HABIT', raw: text, args } };
+    }
+
+    // Async parsing: tries regex first, falls back to AI for complex natural language
+    static async parseAsync(input: string): Promise<ParseResult> {
+        // First try synchronous regex parsing
+        const regexResult = this.parse(input);
+
+        // If regex succeeds, return immediately
+        if (regexResult.success) {
+            return regexResult;
+        }
+
+        // For complex commands, try AI parsing
+        const aiResult = await parseWithAI(input);
+
+        if (aiResult.success && aiResult.command) {
+            return {
+                success: true,
+                command: aiResult.command,
+            };
+        }
+
+        // Both failed - return the original regex error with AI suggestion
+        return {
+            success: false,
+            error: aiResult.error || regexResult.error || 'Could not parse command',
+            suggestions: regexResult.suggestions,
+        };
     }
 }

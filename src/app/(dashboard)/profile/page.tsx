@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { DatabaseService } from '@/lib/database';
+import { DataService } from '@/lib/sync/DataService';
 import { UserPreferences } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 
 export default function ProfilePage() {
     const [preferences, setPreferences] = useState<UserPreferences | null>(null);
@@ -11,6 +12,7 @@ export default function ProfilePage() {
     const [isSaving, setIsSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
+    const searchParams = useSearchParams();
 
     const [profile, setProfile] = useState({
         name: 'John Doe',
@@ -24,18 +26,66 @@ export default function ProfilePage() {
 
     useEffect(() => {
         loadPreferences();
-    }, []);
+        handleGoogleCallback();
+    }, [searchParams]);
 
     const loadPreferences = async () => {
-        const prefs = await DatabaseService.getPreferences();
+        const prefs = await DataService.getPreferences();
         if (prefs) {
             setPreferences(prefs);
         }
     };
 
+    const handleGoogleCallback = async () => {
+        const connected = searchParams.get('google_connected');
+        const tokensStr = searchParams.get('tokens');
+        const error = searchParams.get('google_error');
+
+        if (connected === 'true' && tokensStr) {
+            try {
+                const tokens = JSON.parse(decodeURIComponent(tokensStr));
+                const prefs = await DataService.getPreferences();
+
+                if (prefs) {
+                    const updatedPrefs = {
+                        ...prefs,
+                        googleCalendarTokens: tokens
+                    };
+                    await DataService.savePreferences(updatedPrefs);
+                    setPreferences(updatedPrefs);
+
+                    // Clear URL params
+                    router.replace('/profile');
+                    alert('Google Calendar connected successfully!');
+                }
+            } catch (e) {
+                console.error('Failed to parse tokens', e);
+                alert('Failed to connect Google Calendar');
+            }
+        } else if (error) {
+            alert(`Google Calendar connection failed: ${error}`);
+            router.replace('/profile');
+        }
+    };
+
+    const handleConnectGoogle = () => {
+        router.push('/api/google/auth');
+    };
+
+    const handleDisconnectGoogle = async () => {
+        if (!preferences) return;
+
+        if (confirm('Are you sure you want to disconnect Google Calendar?')) {
+            const updatedPrefs = { ...preferences };
+            delete updatedPrefs.googleCalendarTokens;
+
+            await DataService.savePreferences(updatedPrefs);
+            setPreferences(updatedPrefs);
+        }
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
-
         // Simulate save - in production, connect to your backend
         setTimeout(() => {
             setProfile(editedProfile);
@@ -112,10 +162,11 @@ export default function ProfilePage() {
                             }}
                         >
                             {profile.avatar ? (
-                                <img
+                                <Image
                                     src={profile.avatar}
                                     alt={profile.name}
-                                    className="w-full h-full rounded-full object-cover"
+                                    fill
+                                    className="object-cover"
                                 />
                             ) : (
                                 getInitials(profile.name)
@@ -205,6 +256,72 @@ export default function ProfilePage() {
                             </div>
                         </div>
                     ))}
+                </div>
+            </div>
+
+            {/* Integrations */}
+            <div
+                className="rounded-xl p-8"
+                style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    boxShadow: 'var(--shadow-soft)'
+                }}
+            >
+                <h2
+                    className="text-lg mb-6"
+                    style={{
+                        fontFamily: 'var(--font-serif)',
+                        fontWeight: 500,
+                        color: 'var(--color-charcoal)'
+                    }}
+                >
+                    Integrations
+                </h2>
+
+                <div className="flex items-center justify-between p-4 rounded-lg"
+                    style={{
+                        background: 'var(--color-ivory)',
+                        border: '1px solid var(--color-border-light)'
+                    }}
+                >
+                    <div className="flex items-center gap-3">
+                        <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#4285F4' }}>
+                            <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81Z" />
+                        </svg>
+                        <div>
+                            <div className="font-medium" style={{ color: 'var(--color-charcoal)' }}>Google Calendar</div>
+                            <div className="text-xs" style={{ color: 'var(--color-mist)' }}>
+                                {preferences?.googleCalendarTokens ? 'Connected' : 'Sync your fixed events'}
+                            </div>
+                        </div>
+                    </div>
+
+                    {preferences?.googleCalendarTokens ? (
+                        <button
+                            onClick={handleDisconnectGoogle}
+                            className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+                            style={{
+                                background: 'transparent',
+                                color: 'var(--color-stone)',
+                                border: '1px solid var(--color-border)'
+                            }}
+                        >
+                            Disconnect
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleConnectGoogle}
+                            className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+                            style={{
+                                background: 'white',
+                                color: '#4285F4',
+                                border: '1px solid #4285F4'
+                            }}
+                        >
+                            Connect
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -441,6 +558,7 @@ export default function ProfilePage() {
                                     onClick={handleCancel}
                                     className="p-2 rounded-lg transition-colors"
                                     style={{ color: 'var(--color-mist)' }}
+                                    aria-label="Close form"
                                 >
                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -452,6 +570,8 @@ export default function ProfilePage() {
                             <div className="flex justify-center mb-8">
                                 <div className="relative">
                                     <input
+                                        id="avatar-upload"
+                                        name="avatar-upload"
                                         type="file"
                                         ref={fileInputRef}
                                         onChange={handleFileChange}
@@ -467,10 +587,11 @@ export default function ProfilePage() {
                                         }}
                                     >
                                         {editedProfile.avatar ? (
-                                            <img
+                                            <Image
                                                 src={editedProfile.avatar}
                                                 alt={editedProfile.name}
-                                                className="w-full h-full object-cover"
+                                                fill
+                                                className="object-cover"
                                             />
                                         ) : (
                                             getInitials(editedProfile.name)
@@ -495,13 +616,15 @@ export default function ProfilePage() {
 
                             <div className="space-y-5">
                                 <div>
-                                    <label
+                                    <label htmlFor="profile-name"
                                         className="block text-xs uppercase tracking-wider mb-2"
                                         style={{ color: 'var(--color-mist)' }}
                                     >
                                         Full Name
                                     </label>
                                     <input
+                                        id="profile-name"
+                                        name="profile-name"
                                         type="text"
                                         value={editedProfile.name}
                                         onChange={(e) => setEditedProfile(prev => ({ ...prev, name: e.target.value }))}
@@ -515,13 +638,15 @@ export default function ProfilePage() {
                                 </div>
 
                                 <div>
-                                    <label
+                                    <label htmlFor="profile-email"
                                         className="block text-xs uppercase tracking-wider mb-2"
                                         style={{ color: 'var(--color-mist)' }}
                                     >
                                         Email Address
                                     </label>
                                     <input
+                                        id="profile-email"
+                                        name="profile-email"
                                         type="email"
                                         value={editedProfile.email}
                                         onChange={(e) => setEditedProfile(prev => ({ ...prev, email: e.target.value }))}
@@ -535,13 +660,15 @@ export default function ProfilePage() {
                                 </div>
 
                                 <div>
-                                    <label
+                                    <label htmlFor="profile-timezone"
                                         className="block text-xs uppercase tracking-wider mb-2"
                                         style={{ color: 'var(--color-mist)' }}
                                     >
                                         Timezone
                                     </label>
                                     <input
+                                        id="profile-timezone"
+                                        name="profile-timezone"
                                         type="text"
                                         value={editedProfile.timezone}
                                         onChange={(e) => setEditedProfile(prev => ({ ...prev, timezone: e.target.value }))}

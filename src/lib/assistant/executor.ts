@@ -1,11 +1,11 @@
-import { Command, ExecutionResult, TodayWorkArgs, TodayFixedArgs, AddHabitArgs, AddTaskArgs, LockArgs } from './types';
+import { Command, ExecutionResult, TodayWorkArgs, TodayFixedArgs, AddHabitArgs, AddTaskArgs, PasteScheduleArgs } from './types';
 import { DatabaseService } from '@/lib/database';
-import { DailyInput, Habit, Task, ScheduledBlock } from '@/types';
+import { Habit, Task, FixedEvent } from '@/types';
 import { parseTextInput } from '@/lib/scheduling-engine';
 import { format } from 'date-fns';
 
 export class AssistantExecutor {
-    static async execute(command: Command, context?: any): Promise<ExecutionResult> {
+    static async execute(command: Command): Promise<ExecutionResult> {
         try {
             switch (command.type) {
                 case 'HELP':
@@ -21,7 +21,7 @@ export class AssistantExecutor {
                 case 'TODAY_FIXED':
                     return await this.handleTodayFixed(command.args as TodayFixedArgs);
                 case 'PASTE_SCHEDULE':
-                    return await this.handlePasteSchedule(command.args?.text);
+                    return await this.handlePasteSchedule((command.args as PasteScheduleArgs)?.text);
                 case 'ADD_HABIT':
                     return await this.handleAddHabit(command.args as AddHabitArgs);
                 case 'ADD_TASK':
@@ -32,8 +32,9 @@ export class AssistantExecutor {
                 default:
                     return { success: false, message: `Command type ${command.type} not yet implemented.` };
             }
-        } catch (err: any) {
-            return { success: false, message: `Error executing command: ${err.message}` };
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+            return { success: false, message: `Error executing command: ${errorMessage}` };
         }
     }
 
@@ -151,7 +152,7 @@ export class AssistantExecutor {
                 title: item.title,
                 start: item.start,
                 end: item.end,
-                type: item.type as any, // Cast to match FixedEvent type
+                type: item.type as FixedEvent['type'],
                 locked: true
             });
         }
@@ -162,7 +163,7 @@ export class AssistantExecutor {
 
     private static async handleAddHabit(args: AddHabitArgs): Promise<ExecutionResult> {
         const habit: Habit = {
-            id: `habit-${Date.now()}`,
+            id: crypto.randomUUID(),
             name: args.name,
             duration: args.duration,
             frequency: args.frequency,
@@ -181,7 +182,7 @@ export class AssistantExecutor {
 
     private static async handleAddTask(args: AddTaskArgs): Promise<ExecutionResult> {
         const task: Task = {
-            id: `task-${Date.now()}`,
+            id: crypto.randomUUID(),
             title: args.title,
             estimatedDuration: args.duration,
             priority: args.priority,

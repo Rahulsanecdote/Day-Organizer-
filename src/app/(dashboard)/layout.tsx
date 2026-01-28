@@ -4,13 +4,16 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { initializeDatabase } from '@/lib/database';
+import { logger } from '@/lib/logger';
 import { ThemeProvider } from '@/components/ThemeProvider';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import '../globals.css';
+import { ThemeToggleButton2 } from '@/components/ui/theme-toggle-buttons';
+import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { ErrorBoundary, MinimalErrorBoundary } from '@/components/ErrorBoundary';
 import CommandBar from '@/components/assistant/CommandBar';
 import MorningBriefing from '@/components/assistant/MorningBriefing';
 import EveningDebrief from '@/components/assistant/EveningDebrief';
-import QuestOverlay from '@/components/assistant/QuestOverlay';
+import PomodoroTimer from '@/components/PomodoroTimer';
 
 export default function RootLayout({
   children,
@@ -27,7 +30,7 @@ export default function RootLayout({
         await initializeDatabase();
         setIsInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize database:', error);
+        logger.error('Failed to initialize database', { error: String(error) });
       }
     };
     init();
@@ -45,32 +48,26 @@ export default function RootLayout({
 
   if (!isInitialized) {
     return (
-      <html lang="en" suppressHydrationWarning>
-        <head>
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        </head>
-        <body>
-          <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-            <div className="text-center">
-              <div className="relative w-16 h-16 mx-auto mb-6">
-                <div className="absolute inset-0 border-2 border-[#E8E4DF] rounded-full"></div>
-                <div className="absolute inset-0 border-2 border-transparent border-t-[#B8976B] rounded-full animate-spin"></div>
-              </div>
-              <p className="text-[#6B6560] tracking-wide text-sm uppercase">Preparing your day...</p>
-            </div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
+        <div className="text-center">
+          <div className="relative w-16 h-16 mx-auto mb-6">
+            <div className="absolute inset-0 border-2 border-[#E8E4DF] rounded-full"></div>
+            <div className="absolute inset-0 border-2 border-transparent border-t-[#B8976B] rounded-full animate-spin"></div>
           </div>
-        </body>
-      </html>
+          <p className="text-[#6B6560] tracking-wide text-sm uppercase">Preparing your day...</p>
+        </div>
+      </div>
     );
   }
 
   const navigation = [
-    { name: 'Today', href: '/today-setup', icon: 'today' },
-    { name: 'Plan', href: '/plan', icon: 'plan' },
+    { name: 'Home', href: '/dashboard', icon: 'home' },
+    { name: 'Morning', href: '/morning', icon: 'today' },
+    { name: 'Focus', href: '/plan', icon: 'plan' }, // Renaming Plan to Focus in UI
     { name: 'Habits', href: '/habits', icon: 'habits' },
     { name: 'Tasks', href: '/tasks', icon: 'tasks' },
     { name: 'History', href: '/history', icon: 'history' },
+    { name: 'Analytics', href: '/analytics', icon: 'analytics' },
     { name: 'Profile', href: '/profile', icon: 'profile' },
     { name: 'Settings', href: '/onboarding', icon: 'settings' },
   ];
@@ -78,6 +75,12 @@ export default function RootLayout({
   const getIcon = (icon: string) => {
     const iconClass = "w-5 h-5";
     switch (icon) {
+      case 'home':
+        return (
+          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+          </svg>
+        );
       case 'today':
         return (
           <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -108,6 +111,12 @@ export default function RootLayout({
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
           </svg>
         );
+      case 'analytics':
+        return (
+          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+          </svg>
+        );
       case 'profile':
         return (
           <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -127,31 +136,23 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
-      </head>
-      <body className="min-h-screen" style={{ background: 'var(--color-cream)' }} suppressHydrationWarning>
-        <ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <div className="min-h-screen" style={{ background: 'var(--ambient-gradient)', backgroundAttachment: 'fixed' }}>
           <div className="flex h-screen">
-            {/* Sidebar */}
+            {/* Glass Sidebar */}
             <div
-              className="w-72 flex flex-col"
-              style={{
-                background: 'var(--color-surface)',
-                borderRight: '1px solid var(--color-border)'
-              }}
+              className="w-72 flex flex-col glass-sidebar"
             >
               {/* Logo */}
-              <div className="px-8 py-8" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+              <div className="px-8 py-8" style={{ borderBottom: '1px solid var(--glass-border-subtle)' }}>
                 <h1
                   className="text-2xl tracking-tight"
                   style={{
                     fontFamily: 'var(--font-serif)',
                     fontWeight: 500,
-                    color: 'var(--color-charcoal)'
+                    color: 'var(--color-charcoal)',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.05)'
                   }}
                 >
                   Daily Organizer
@@ -173,10 +174,12 @@ export default function RootLayout({
                       <Link
                         key={item.name}
                         href={item.href}
-                        className="group flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200"
+                        className="group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300"
                         style={{
-                          background: isActive ? 'var(--color-ivory)' : 'transparent',
+                          background: isActive ? 'var(--glass-bg-subtle)' : 'transparent',
                           color: isActive ? 'var(--color-gold-dark)' : 'var(--color-stone)',
+                          border: isActive ? '1px solid var(--glass-border)' : '1px solid transparent',
+                          boxShadow: isActive ? 'var(--glass-shadow), 0 0 20px rgba(184, 151, 107, 0.1)' : 'none',
                         }}
                       >
                         <span
@@ -210,7 +213,7 @@ export default function RootLayout({
               {/* Footer */}
               <div
                 className="px-8 py-6"
-                style={{ borderTop: '1px solid var(--color-border-light)' }}
+                style={{ borderTop: '1px solid var(--glass-border-subtle)' }}
               >
                 <p
                   className="text-xs tracking-wider uppercase"
@@ -223,12 +226,14 @@ export default function RootLayout({
 
             {/* Main content */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Header */}
+              {/* Glass Header */}
               <header
                 className="px-10 py-6 flex items-center justify-between"
                 style={{
-                  background: 'var(--color-surface)',
-                  borderBottom: '1px solid var(--color-border)'
+                  background: 'var(--glass-bg)',
+                  backdropFilter: 'blur(var(--glass-blur))',
+                  WebkitBackdropFilter: 'blur(var(--glass-blur))',
+                  borderBottom: '1px solid var(--glass-border-subtle)'
                 }}
               >
                 <div>
@@ -250,12 +255,15 @@ export default function RootLayout({
                   </p>
                 </div>
 
-                {/* Current time indicator */}
+                {/* Current time indicator - Glass pill */}
                 <div
                   className="flex items-center gap-2 px-4 py-2 rounded-full"
                   style={{
-                    background: 'var(--color-ivory)',
-                    border: '1px solid var(--color-border-light)'
+                    background: 'var(--glass-bg-subtle)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: '1px solid var(--glass-border)',
+                    boxShadow: 'var(--glass-shadow)'
                   }}
                 >
                   <span
@@ -271,28 +279,43 @@ export default function RootLayout({
                 </div>
 
                 <div className="ml-4">
-                  <ThemeToggle />
+                  <SyncStatusIndicator />
+                </div>
+
+                <div className="ml-4">
+                  <ThemeToggleButton2 className="h-10 w-10 p-2" />
                 </div>
               </header>
 
               {/* Main content area */}
               <main
                 className="flex-1 overflow-y-auto"
-                style={{ background: 'var(--color-cream)' }}
+                style={{ background: 'transparent' }}
               >
                 <div className="p-10">
-                  {children}
+                  <ErrorBoundary>
+                    {children}
+                  </ErrorBoundary>
                 </div>
               </main>
             </div>
           </div>
-          <CommandBar />
-          <MorningBriefing />
-          <EveningDebrief />
-          <QuestOverlay />
-        </ThemeProvider>
-      </body>
-    </html>
+          {/* Wrap overlay components in minimal boundaries so errors don't crash the whole app */}
+          <MinimalErrorBoundary fallbackMessage="Command bar unavailable">
+            <CommandBar />
+          </MinimalErrorBoundary>
+          <MinimalErrorBoundary fallbackMessage="">
+            <MorningBriefing />
+          </MinimalErrorBoundary>
+          <MinimalErrorBoundary fallbackMessage="">
+            <EveningDebrief />
+          </MinimalErrorBoundary>
+          <MinimalErrorBoundary fallbackMessage="">
+            <PomodoroTimer />
+          </MinimalErrorBoundary>
+        </div>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

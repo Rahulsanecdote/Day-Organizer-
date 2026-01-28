@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AssistantParser } from '@/lib/assistant/parser';
 import { AssistantExecutor } from '@/lib/assistant/executor';
 import { DatabaseService } from '@/lib/database'; // to log commands
-import { CommandType } from '@/lib/assistant/types';
+
 import { COMMAND_DEFINITIONS } from '@/lib/assistant/commands';
 
 export default function CommandBar() {
@@ -40,7 +40,8 @@ export default function CommandBar() {
         e.preventDefault();
         if (!input.trim()) return;
 
-        const parseResult = AssistantParser.parse(input);
+        // Use async parsing with AI fallback
+        const parseResult = await AssistantParser.parseAsync(input);
 
         // Log intent (even if failed parse) - can be async
         const logId = `log-${Date.now()}`;
@@ -89,20 +90,21 @@ export default function CommandBar() {
             setHistoryIndex(-1);
 
             // Handle Trigger Plan
-            if (execResult.data?.action === 'TRIGGER_PLAN') {
+            if (execResult.data && typeof execResult.data === 'object' && 'action' in execResult.data && execResult.data.action === 'TRIGGER_PLAN') {
                 // Dispatch event for the Plan page to listen to
                 window.dispatchEvent(new CustomEvent('assistant-trigger-plan'));
             }
 
-        } catch (err: any) {
-            setResult({ success: false, message: err.message });
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+            setResult({ success: false, message: errorMessage });
             DatabaseService.logAssistantCommand({
                 id: logId,
                 timestamp: Date.now(),
                 inputText: input,
                 commandType: command.type,
                 success: false,
-                resultSummary: err.message
+                resultSummary: errorMessage
             });
         }
     };
@@ -134,6 +136,8 @@ export default function CommandBar() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                     </svg>
                     <input
+                        id="command-input"
+                        name="command"
                         ref={inputRef}
                         type="text"
                         className="flex-1 bg-transparent text-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none"

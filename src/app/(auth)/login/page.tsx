@@ -1,24 +1,78 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { AuthService } from '@/lib/supabase';
 
 export default function LoginPage() {
+    const router = useRouter();
+    const { signIn, isCloudEnabled } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [isResettingPassword, setIsResettingPassword] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
         setIsLoading(true);
 
-        // Simulate login - in production, connect to your auth service
-        setTimeout(() => {
+        // If cloud sync is not enabled, just redirect (local-only mode)
+        if (!isCloudEnabled) {
+            router.push('/today-setup');
+            return;
+        }
+
+        const { error } = await signIn(email, password);
+
+        if (error) {
+            setError(error.message || 'Failed to sign in');
             setIsLoading(false);
-            window.location.href = '/today-setup';
-        }, 1500);
+        } else {
+            router.push('/today-setup');
+        }
     };
+
+    const handleForgotPassword = async () => {
+        // Clear previous messages
+        setError(null);
+        setSuccessMessage(null);
+
+        // Validate email is provided
+        if (!email || !email.includes('@')) {
+            setError('Please enter a valid email address first');
+            return;
+        }
+
+        // Check if cloud sync is enabled
+        if (!isCloudEnabled) {
+            setError('Password reset requires cloud sync to be enabled');
+            return;
+        }
+
+        setIsResettingPassword(true);
+
+        try {
+            const { error } = await AuthService.resetPassword(email);
+
+            if (error) {
+                setError(error.message || 'Failed to send reset email');
+            } else {
+                setSuccessMessage('Password reset link sent! Check your email inbox.');
+            }
+        } catch {
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
+            setIsResettingPassword(false);
+        }
+    };
+
+    // TODO: Add Google OAuth button that calls signInWithGoogle()
 
     return (
         <div
@@ -64,7 +118,7 @@ export default function LoginPage() {
                                 fontStyle: 'italic'
                             }}
                         >
-                            "The key is not to prioritize what's on your schedule, but to schedule your priorities."
+                            &quot;The key is not to prioritize what&apos;s on your schedule, but to schedule your priorities.&quot;
                         </p>
                         <p
                             className="mt-4 text-sm"
@@ -93,7 +147,7 @@ export default function LoginPage() {
                     className="text-xs"
                     style={{ color: 'rgba(255, 255, 255, 0.4)' }}
                 >
-                    © 2024 Daily Organizer. All rights reserved.
+                    © {new Date().getFullYear()} Daily Organizer. All rights reserved.
                 </p>
             </div>
 
@@ -144,6 +198,60 @@ export default function LoginPage() {
                             </p>
                         </div>
 
+                        {/* Local-only mode indicator */}
+                        {!isCloudEnabled && (
+                            <div
+                                className="mb-6 p-4 rounded-lg text-sm text-center"
+                                style={{
+                                    background: 'var(--color-ivory)',
+                                    border: '1px solid var(--color-border)'
+                                }}
+                            >
+                                <p style={{ color: 'var(--color-slate)' }}>
+                                    Cloud sync is not configured.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/today-setup')}
+                                    className="mt-2 font-medium transition-colors"
+                                    style={{ color: 'var(--color-gold-dark)' }}
+                                >
+                                    Continue in local-only mode →
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Success message display */}
+                        {successMessage && (
+                            <div
+                                className="mb-6 p-4 rounded-lg text-sm"
+                                style={{
+                                    background: '#F0FDF4',
+                                    border: '1px solid #BBF7D0',
+                                    color: '#16A34A'
+                                }}
+                                role="status"
+                                aria-live="polite"
+                            >
+                                {successMessage}
+                            </div>
+                        )}
+
+                        {/* Error display */}
+                        {error && (
+                            <div
+                                className="mb-6 p-4 rounded-lg text-sm"
+                                style={{
+                                    background: '#FEF2F2',
+                                    border: '1px solid #FECACA',
+                                    color: '#DC2626'
+                                }}
+                                role="alert"
+                            >
+                                {error}
+                            </div>
+                        )}
+
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>
                                 <label
@@ -153,6 +261,8 @@ export default function LoginPage() {
                                     Email Address
                                 </label>
                                 <input
+                                    id="email"
+                                    name="email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -177,14 +287,22 @@ export default function LoginPage() {
                                     </label>
                                     <button
                                         type="button"
-                                        className="text-xs transition-colors"
-                                        style={{ color: 'var(--color-gold)' }}
+                                        onClick={handleForgotPassword}
+                                        disabled={isResettingPassword}
+                                        aria-label="Reset your password via email"
+                                        className="text-xs transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-offset-2 rounded disabled:opacity-50"
+                                        style={{
+                                            color: 'var(--color-gold)',
+                                            cursor: isResettingPassword ? 'wait' : 'pointer'
+                                        }}
                                     >
-                                        Forgot password?
+                                        {isResettingPassword ? 'Sending...' : 'Forgot password?'}
                                     </button>
                                 </div>
                                 <div className="relative">
                                     <input
+                                        id="password"
+                                        name="password"
                                         type={showPassword ? 'text' : 'password'}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
@@ -246,7 +364,7 @@ export default function LoginPage() {
 
                         <div className="mt-8 pt-6" style={{ borderTop: '1px solid var(--color-border-light)' }}>
                             <p className="text-center text-sm" style={{ color: 'var(--color-slate)' }}>
-                                Don't have an account?{' '}
+                                Don&apos;t have an account?{' '}
                                 <Link
                                     href="/signup"
                                     className="font-medium transition-colors"

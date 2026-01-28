@@ -1,0 +1,58 @@
+# CI Pipeline - Runs on every pull request and push to main
+# Stages: Install → Lint → Build → Test
+# Fails the PR if any stage fails
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up Node.js with caching for npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # LTS version
+          cache: 'npm'        # Caches ~/.npm directory
+
+      # 3. Install dependencies (uses lockfile for reproducible builds)
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Run linting
+      - name: Lint
+        run: npm run lint
+
+      # 5. Build the application
+      - name: Build
+        run: npm run build
+
+      # 6. Run tests
+      - name: Test
+        run: npm test
+
+      # 7. Upload build artifacts (optional, useful for debugging)
+      - name: Upload build output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: .next/
+          retention-days: 7

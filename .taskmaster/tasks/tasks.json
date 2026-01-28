@@ -1,0 +1,152 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Database Schema Migration",
+        "description": "Create Supabase tables mirroring local IndexedDB schema and set up RLS.",
+        "details": "Design tables in Supabase to match the existing IndexedDB schema. Implement Row Level Security (RLS) to ensure user data isolation. Write migration scripts to transfer existing local data to the cloud.",
+        "testStrategy": "Verify schema matches IndexedDB. Test RLS by attempting unauthorized data access. Run migration scripts and check data integrity.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T01:42:19.358Z"
+      },
+      {
+        "id": "2",
+        "title": "Sync Service Implementation",
+        "description": "Build real-time sync using Supabase Realtime and implement conflict resolution.",
+        "details": "Use Supabase Realtime to enable real-time data synchronization. Implement a last-write-wins strategy for conflict resolution using timestamps. Develop an offline queue to store changes made without a connection and sync them upon reconnection.",
+        "testStrategy": "Simulate data changes on multiple devices and verify sync accuracy. Test conflict resolution by creating simultaneous updates. Validate offline queue functionality by making changes offline and reconnecting.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T01:47:40.573Z"
+      },
+      {
+        "id": "3",
+        "title": "User Data Management",
+        "description": "Migrate habits, tasks, and plans to cloud storage with local cache for offline use.",
+        "details": "Develop a mechanism to migrate user data to cloud storage while maintaining a local cache for offline access. Implement UI indicators to show sync status.",
+        "testStrategy": "Check data consistency between local and cloud storage. Test UI indicators by simulating sync status changes.",
+        "priority": "medium",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T01:52:01.016Z"
+      },
+      {
+        "id": "4",
+        "title": "Command Bar Component",
+        "description": "Develop a floating command bar for natural language input processing.",
+        "details": "Create a floating command bar accessible via CMD+K shortcut. Integrate natural language processing to interpret user commands and provide quick action suggestions.",
+        "testStrategy": "Test command bar accessibility and responsiveness. Validate NLP accuracy by processing various user commands and checking suggested actions.",
+        "priority": "medium",
+        "dependencies": [
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T01:54:12.048Z"
+      },
+      {
+        "id": "5",
+        "title": "AI Actions Implementation",
+        "description": "Implement AI-driven actions for scheduling and task management.",
+        "details": "Develop handlers for AI-driven actions such as scheduling gym sessions, adding habits, and rescheduling tasks. Use OpenAI GPT-4 for NLP processing.",
+        "testStrategy": "Test each AI action by simulating user commands and verifying correct execution. Measure response time and accuracy of AI suggestions.",
+        "priority": "medium",
+        "dependencies": [
+          "4"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T02:05:26.775Z"
+      },
+      {
+        "id": "6",
+        "title": "Morning Briefing Feature",
+        "description": "Create an AI-generated daily summary on app open.",
+        "details": "Develop a feature that generates a daily summary using AI, highlighting key tasks and suggesting schedule optimizations. Consider future integration of weather and commute data.",
+        "testStrategy": "Test daily summary generation by opening the app and verifying the accuracy and relevance of the summary. Check for performance issues.",
+        "priority": "low",
+        "dependencies": [
+          "5"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T02:13:15.373Z"
+      },
+      {
+        "id": "7",
+        "title": "Notification Service Setup",
+        "description": "Implement push notifications for reminders using Web Push API and Firebase.",
+        "details": "Set up a notification service using Web Push API and Firebase Cloud Messaging. Develop notification types for event reminders, habit streaks, and daily reviews.",
+        "testStrategy": "Test notification delivery by scheduling reminders and verifying receipt on different devices. Check notification settings and preferences functionality.",
+        "priority": "medium",
+        "dependencies": [
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T02:27:23.781Z"
+      },
+      {
+        "id": "8",
+        "title": "Google Calendar Integration",
+        "description": "Integrate Google Calendar for two-way sync of fixed events.",
+        "details": "Implement OAuth for Google Calendar integration. Develop logic for two-way sync of fixed events and automatic import of work schedules.",
+        "testStrategy": "Test OAuth flow by connecting a Google account. Verify two-way sync by adding events in both the app and Google Calendar and checking consistency.",
+        "priority": "medium",
+        "dependencies": [
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T02:36:46.374Z"
+      },
+      {
+        "id": "9",
+        "title": "Apple Calendar Integration",
+        "description": "Implement CalDAV integration for read-only sync with Apple Calendar.",
+        "details": "Develop a read-only sync feature using CalDAV for Apple Calendar. Allow users to export generated plans to their calendar.",
+        "testStrategy": "Test CalDAV integration by syncing with an Apple Calendar and verifying the accuracy of imported events. Check export functionality.",
+        "priority": "low",
+        "dependencies": [
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "Enhanced Analytics Development",
+        "description": "Implement trend analysis and AI-powered insights for productivity patterns.",
+        "details": "Develop analytics features to track weekly, monthly, and yearly completion trends. Use AI to generate insights on productivity patterns and suggest improvements.",
+        "testStrategy": "Test analytics accuracy by comparing generated reports with actual user data. Validate AI insights by checking their relevance and usefulness.",
+        "priority": "low",
+        "dependencies": [
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-25T03:15:17.432Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-01-25T03:15:17.433Z",
+      "taskCount": 10,
+      "completedCount": 9,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

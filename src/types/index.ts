@@ -133,6 +133,10 @@ export interface PlanOutput {
     freeTimeRemaining: number;
   };
   nextDaySuggestions?: string[];
+  // Generation Metadata
+  generatedAt?: string;      // ISO timestamp
+  isLateNightMode?: boolean; // True if generated in late night mode
+  timezone?: string;
 }
 
 // User preferences and settings
@@ -148,6 +152,11 @@ export interface UserPreferences {
     enabled: boolean;
     reminderMinutes: number;
     completionCheckMinutes: number;
+  };
+  googleCalendarTokens?: {
+    access_token: string;
+    refresh_token?: string;
+    expiry_date?: number;
   };
 }
 
@@ -220,14 +229,6 @@ export interface TomorrowSuggestion {
   date: string; // YYYY-MM-DD
   items: UnscheduledItem[];
   createdAt: number;
-}
-
-export interface QuestStats {
-  id: string; // usually the date YYYY-MM-DD
-  date: string;
-  xp: number;
-  streak: number;
-  completedCount: number;
 }
 
 export interface FeatureFlag {

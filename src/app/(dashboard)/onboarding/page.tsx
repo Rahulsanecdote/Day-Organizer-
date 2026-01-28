@@ -1,38 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { DataService } from '@/lib/sync/DataService';
 import { DatabaseService } from '@/lib/database';
-import { UserPreferences } from '@/types';
+import type { UserPreferences, GymSettings } from '@/types';
 
 export default function OnboardingPage() {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importData, setImportData] = useState('');
-  const [isQuestModeEnabled, setIsQuestModeEnabled] = useState(false);
 
-  useEffect(() => {
-    loadPreferences();
-  }, []);
-
-  const loadPreferences = async () => {
-    const prefs = await DatabaseService.getPreferences();
+  const loadPreferences = useCallback(async () => {
+    const prefs = await DataService.getPreferences();
     if (prefs) {
       setPreferences(prefs);
     }
-    const questMode = await DatabaseService.getFeatureFlag('enableQuestMode');
-    setIsQuestModeEnabled(questMode);
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadPreferences();
+  }, [loadPreferences]);
 
   const handleSavePreferences = async () => {
     if (!preferences) return;
 
-    await DatabaseService.savePreferences(preferences);
-    setIsEditing(false);
-    await DatabaseService.savePreferences(preferences);
-
-    // Save Feature Flags
-    await DatabaseService.setFeatureFlag('enableQuestMode', isQuestModeEnabled);
+    await DataService.savePreferences(preferences);
 
     setIsEditing(false);
     alert('Preferences saved successfully!');
@@ -40,9 +34,9 @@ export default function OnboardingPage() {
 
   const handleResetToDefaults = async () => {
     if (confirm('Are you sure you want to reset all preferences to defaults? This cannot be undone.')) {
-      const defaults = await DatabaseService.getDefaultPreferences();
+      const defaults = await DataService.getDefaultPreferences();
       setPreferences(defaults);
-      await DatabaseService.savePreferences(defaults);
+      await DataService.savePreferences(defaults);
       alert('Preferences reset to defaults.');
     }
   };
@@ -57,7 +51,7 @@ export default function OnboardingPage() {
       a.download = `daily-organization-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch {
       alert('Failed to export data. Please try again.');
     }
   };
@@ -68,7 +62,7 @@ export default function OnboardingPage() {
       setShowImportModal(false);
       setImportData('');
       alert('Data imported successfully! Please refresh the page.');
-    } catch (error) {
+    } catch {
       alert('Failed to import data. Please check the format and try again.');
     }
   };
@@ -86,12 +80,27 @@ export default function OnboardingPage() {
     }
   };
 
+  // Common input styles
+  const inputStyle = {
+    background: 'var(--color-ivory)',
+    border: '1px solid var(--color-border)',
+    color: 'var(--color-charcoal)'
+  };
+
+  const labelStyle = { color: 'var(--color-mist)' };
+
   if (!preferences) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow p-6 text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading preferences...</p>
+        <div
+          className="rounded-xl p-6 text-center"
+          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+        >
+          <div
+            className="animate-spin rounded-full h-12 w-12 mx-auto"
+            style={{ borderWidth: '2px', borderColor: 'var(--color-gold)', borderTopColor: 'transparent' }}
+          />
+          <p className="mt-4 text-lg" style={{ color: 'var(--color-slate)' }}>Loading preferences...</p>
         </div>
       </div>
     );
@@ -100,11 +109,19 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div
+        className="rounded-xl p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-soft)' }}
+      >
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings & Preferences</h1>
-            <p className="text-gray-600">
+            <h1
+              className="text-2xl mb-2"
+              style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, color: 'var(--color-charcoal)' }}
+            >
+              Settings & Preferences
+            </h1>
+            <p style={{ color: 'var(--color-slate)' }}>
               Configure your app preferences, gym settings, and data management.
             </p>
           </div>
@@ -112,7 +129,12 @@ export default function OnboardingPage() {
             {!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+                style={{
+                  background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
+                  color: 'white',
+                  boxShadow: '0 2px 8px rgba(184, 151, 107, 0.3)'
+                }}
               >
                 Edit Settings
               </button>
@@ -123,13 +145,19 @@ export default function OnboardingPage() {
                     setIsEditing(false);
                     loadPreferences(); // Reset to saved preferences
                   }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+                  style={{ background: 'transparent', color: 'var(--color-stone)', border: '1px solid var(--color-border)' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSavePreferences}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--color-gym) 0%, #6B8F70 100%)',
+                    color: 'white',
+                    boxShadow: '0 2px 8px rgba(139, 159, 130, 0.3)'
+                  }}
                 >
                   Save Changes
                 </button>
@@ -140,32 +168,41 @@ export default function OnboardingPage() {
       </div>
 
       {/* Basic Settings */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Settings</h2>
+      <div
+        className="rounded-xl p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-soft)' }}
+      >
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-charcoal)' }}>Basic Settings</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="timezone" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
               Timezone
             </label>
             <input
+              id="timezone"
+              name="timezone"
               type="text"
               value={preferences.timezone}
               onChange={(e) => setPreferences(prev => prev ? { ...prev, timezone: e.target.value } : null)}
               disabled={!isEditing}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="theme" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
               Theme
             </label>
             <select
+              id="theme"
+              name="theme"
               value={preferences.theme}
               onChange={(e) => setPreferences(prev => prev ? { ...prev, theme: e.target.value as UserPreferences['theme'] } : null)}
               disabled={!isEditing}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+              style={inputStyle}
             >
               <option value="light">Light</option>
               <option value="dark">Dark</option>
@@ -176,93 +213,116 @@ export default function OnboardingPage() {
       </div>
 
       {/* Default Sleep Schedule */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Default Sleep Schedule</h2>
+      <div
+        className="rounded-xl p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-soft)' }}
+      >
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-charcoal)' }}>Default Sleep Schedule</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="defaultSleepStart" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
               Default Sleep Time
             </label>
             <input
+              id="defaultSleepStart"
+              name="defaultSleepStart"
               type="time"
               value={preferences.defaultSleepStart}
               onChange={(e) => setPreferences(prev => prev ? { ...prev, defaultSleepStart: e.target.value } : null)}
               disabled={!isEditing}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="defaultSleepEnd" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
               Default Wake Time
             </label>
             <input
+              id="defaultSleepEnd"
+              name="defaultSleepEnd"
               type="time"
               value={preferences.defaultSleepEnd}
               onChange={(e) => setPreferences(prev => prev ? { ...prev, defaultSleepEnd: e.target.value } : null)}
               disabled={!isEditing}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+              style={inputStyle}
             />
           </div>
         </div>
       </div>
 
       {/* Planning Constraints */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Planning Constraints</h2>
+      <div
+        className="rounded-xl p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-soft)' }}
+      >
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-charcoal)' }}>Planning Constraints</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="defaultBuffers" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
               Default Buffer Between Blocks (minutes)
             </label>
             <input
+              id="defaultBuffers"
+              name="defaultBuffers"
               type="number"
               min="5"
               max="30"
               value={preferences.defaultBuffers}
               onChange={(e) => setPreferences(prev => prev ? { ...prev, defaultBuffers: parseInt(e.target.value) } : null)}
               disabled={!isEditing}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+              style={inputStyle}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="defaultDowntimeProtection" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
               Default Downtime Protection (minutes)
             </label>
             <input
+              id="defaultDowntimeProtection"
+              name="defaultDowntimeProtection"
               type="number"
               min="0"
               max="120"
               value={preferences.defaultDowntimeProtection}
               onChange={(e) => setPreferences(prev => prev ? { ...prev, defaultDowntimeProtection: parseInt(e.target.value) } : null)}
               disabled={!isEditing}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+              style={inputStyle}
             />
           </div>
         </div>
       </div>
 
       {/* Gym Settings */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Gym Settings</h2>
+      <div
+        className="rounded-xl p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-soft)' }}
+      >
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-charcoal)' }}>Gym Settings</h2>
 
         <div className="space-y-6">
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
               id="gym-enabled"
+              name="gym-enabled"
               checked={preferences.gymSettings.enabled}
               onChange={(e) => setPreferences(prev => prev ? {
                 ...prev,
                 gymSettings: { ...prev.gymSettings, enabled: e.target.checked }
               } : null)}
               disabled={!isEditing}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+              className="rounded disabled:opacity-50"
+              style={{ accentColor: 'var(--color-gold)' }}
             />
-            <label htmlFor="gym-enabled" className="text-sm font-medium text-gray-700">
+            <label htmlFor="gym-enabled" className="text-sm font-medium" style={{ color: 'var(--color-stone)' }}>
               Enable gym scheduling
             </label>
           </div>
@@ -271,10 +331,12 @@ export default function OnboardingPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="gym-frequency" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                     Frequency (times per week)
                   </label>
                   <input
+                    id="gym-frequency"
+                    name="gym-frequency"
                     type="number"
                     min="1"
                     max="7"
@@ -284,15 +346,18 @@ export default function OnboardingPage() {
                       gymSettings: { ...prev.gymSettings, frequency: parseInt(e.target.value) }
                     } : null)}
                     disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                    style={inputStyle}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="gym-default-duration" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                     Default Duration (minutes)
                   </label>
                   <input
+                    id="gym-default-duration"
+                    name="gym-default-duration"
                     type="number"
                     min="20"
                     max="120"
@@ -302,24 +367,28 @@ export default function OnboardingPage() {
                       gymSettings: { ...prev.gymSettings, defaultDuration: parseInt(e.target.value) }
                     } : null)}
                     disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                    style={inputStyle}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="gym-preferred-window" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                     Preferred Window
                   </label>
                   <select
+                    id="gym-preferred-window"
+                    name="gym-preferred-window"
                     value={preferences.gymSettings.preferredWindow}
                     onChange={(e) => setPreferences(prev => prev ? {
                       ...prev,
-                      gymSettings: { ...prev.gymSettings, preferredWindow: e.target.value as any }
+                      gymSettings: { ...prev.gymSettings, preferredWindow: e.target.value as GymSettings['preferredWindow'] }
                     } : null)}
                     disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                    style={inputStyle}
                   >
                     <option value="after-work">After Work</option>
                     <option value="morning">Morning</option>
@@ -328,10 +397,12 @@ export default function OnboardingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="gym-min-duration" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                     Minimum Duration (minutes)
                   </label>
                   <input
+                    id="gym-min-duration"
+                    name="gym-min-duration"
                     type="number"
                     min="10"
                     max="60"
@@ -341,17 +412,20 @@ export default function OnboardingPage() {
                       gymSettings: { ...prev.gymSettings, minimumDuration: parseInt(e.target.value) }
                     } : null)}
                     disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                    style={inputStyle}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="gym-bedtime-buffer" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                     Bedtime Buffer (minutes)
                   </label>
                   <input
+                    id="gym-bedtime-buffer"
+                    name="gym-bedtime-buffer"
                     type="number"
                     min="30"
                     max="240"
@@ -361,15 +435,18 @@ export default function OnboardingPage() {
                       gymSettings: { ...prev.gymSettings, bedtimeBuffer: parseInt(e.target.value) }
                     } : null)}
                     disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                    style={inputStyle}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="gym-warmup-duration" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                     Warmup Duration (minutes)
                   </label>
                   <input
+                    id="gym-warmup-duration"
+                    name="gym-warmup-duration"
                     type="number"
                     min="0"
                     max="15"
@@ -379,15 +456,18 @@ export default function OnboardingPage() {
                       gymSettings: { ...prev.gymSettings, warmupDuration: parseInt(e.target.value) }
                     } : null)}
                     disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                    style={inputStyle}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="gym-cooldown-duration" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                     Cooldown Duration (minutes)
                   </label>
                   <input
+                    id="gym-cooldown-duration"
+                    name="gym-cooldown-duration"
                     type="number"
                     min="0"
                     max="15"
@@ -397,7 +477,8 @@ export default function OnboardingPage() {
                       gymSettings: { ...prev.gymSettings, cooldownDuration: parseInt(e.target.value) }
                     } : null)}
                     disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                    style={inputStyle}
                   />
                 </div>
               </div>
@@ -407,23 +488,28 @@ export default function OnboardingPage() {
       </div>
 
       {/* Notification Settings */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</h2>
+      <div
+        className="rounded-xl p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-soft)' }}
+      >
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-charcoal)' }}>Notification Settings</h2>
 
         <div className="space-y-6">
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
               id="notifications-enabled"
+              name="notifications-enabled"
               checked={preferences.notifications.enabled}
               onChange={(e) => setPreferences(prev => prev ? {
                 ...prev,
                 notifications: { ...prev.notifications, enabled: e.target.checked }
               } : null)}
               disabled={!isEditing}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+              className="rounded disabled:opacity-50"
+              style={{ accentColor: 'var(--color-gold)' }}
             />
-            <label htmlFor="notifications-enabled" className="text-sm font-medium text-gray-700">
+            <label htmlFor="notifications-enabled" className="text-sm font-medium" style={{ color: 'var(--color-stone)' }}>
               Enable notifications
             </label>
           </div>
@@ -431,10 +517,12 @@ export default function OnboardingPage() {
           {preferences.notifications.enabled && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="notifications-reminder-minutes" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                   Reminder Minutes Before
                 </label>
                 <input
+                  id="notifications-reminder-minutes"
+                  name="notifications-reminder-minutes"
                   type="number"
                   min="5"
                   max="60"
@@ -444,15 +532,18 @@ export default function OnboardingPage() {
                     notifications: { ...prev.notifications, reminderMinutes: parseInt(e.target.value) }
                   } : null)}
                   disabled={!isEditing}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                  className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                  style={inputStyle}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="notifications-completion-check" className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
                   Completion Check (minutes)
                 </label>
                 <input
+                  id="notifications-completion-check"
+                  name="notifications-completion-check"
                   type="number"
                   min="15"
                   max="120"
@@ -462,7 +553,8 @@ export default function OnboardingPage() {
                     notifications: { ...prev.notifications, completionCheckMinutes: parseInt(e.target.value) }
                   } : null)}
                   disabled={!isEditing}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                  className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none disabled:opacity-60"
+                  style={inputStyle}
                 />
               </div>
             </div>
@@ -470,70 +562,74 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* Assistant & Experimental */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Assistant & Experimental</h2>
-        <div className="space-y-6">
-          <div className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              id="quest-mode-enabled"
-              checked={isQuestModeEnabled}
-              onChange={(e) => setIsQuestModeEnabled(e.target.checked)}
-              disabled={!isEditing}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-            />
-            <div>
-              <label htmlFor="quest-mode-enabled" className="text-sm font-medium text-gray-700 block">
-                Enable Quest Mode
-              </label>
-              <p className="text-xs text-gray-500">Turn your daily tasks into a role-playing game with XP and streaks.</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Data Management */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Data Management</h2>
+      <div
+        className="rounded-xl p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-soft)' }}
+      >
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-charcoal)' }}>Data Management</h2>
 
         <div className="space-y-4">
           <div className="flex flex-wrap gap-4">
             <button
               onClick={handleExportData}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+              style={{
+                background: 'linear-gradient(135deg, var(--color-work) 0%, #5A8A8B 100%)',
+                color: 'white',
+                boxShadow: '0 2px 8px rgba(122, 158, 159, 0.3)'
+              }}
             >
               Export All Data
             </button>
 
             <button
               onClick={() => setShowImportModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+              style={{
+                background: 'linear-gradient(135deg, var(--color-gym) 0%, #6B8F70 100%)',
+                color: 'white',
+                boxShadow: '0 2px 8px rgba(139, 159, 130, 0.3)'
+              }}
             >
               Import Data
             </button>
 
             <button
               onClick={handleResetToDefaults}
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+              style={{
+                background: 'linear-gradient(135deg, var(--color-task) 0%, #A88F50 100%)',
+                color: 'white',
+                boxShadow: '0 2px 8px rgba(196, 163, 90, 0.3)'
+              }}
             >
               Reset to Defaults
             </button>
 
             <button
               onClick={handleClearAllData}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+              style={{
+                background: 'linear-gradient(135deg, #c96464 0%, #A85050 100%)',
+                color: 'white',
+                boxShadow: '0 2px 8px rgba(201, 100, 100, 0.3)'
+              }}
             >
               Clear All Data
             </button>
           </div>
 
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <div
+            className="p-4 rounded-lg"
+            style={{ background: 'rgba(196, 163, 90, 0.1)', border: '1px solid rgba(196, 163, 90, 0.2)' }}
+          >
             <div className="flex items-start">
-              <span className="text-yellow-600 mr-3">⚠️</span>
+              <span style={{ color: 'var(--color-task)' }} className="mr-3">⚠️</span>
               <div>
-                <h4 className="font-medium text-yellow-900">Data Backup Recommended</h4>
-                <p className="text-sm text-yellow-700">
+                <h4 className="font-medium" style={{ color: 'var(--color-charcoal)' }}>Data Backup Recommended</h4>
+                <p className="text-sm" style={{ color: 'var(--color-slate)' }}>
                   Always export your data before making major changes or clearing data.
                 </p>
               </div>
@@ -543,71 +639,96 @@ export default function OnboardingPage() {
       </div>
 
       {/* Import Modal */}
-      {
-        showImportModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">Import Data</h2>
-                  <button
-                    onClick={() => setShowImportModal(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    ✕
-                  </button>
+      {showImportModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(44, 40, 37, 0.4)', backdropFilter: 'blur(8px)' }}
+        >
+          <div
+            className="rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-elevated)' }}
+          >
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2
+                  className="text-xl"
+                  style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, color: 'var(--color-charcoal)' }}
+                >
+                  Import Data
+                </h2>
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: 'var(--color-mist)' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-2" style={labelStyle}>
+                    Paste JSON Data
+                  </label>
+                  <textarea
+                    value={importData}
+                    onChange={(e) => setImportData(e.target.value)}
+                    rows={10}
+                    className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none resize-none"
+                    style={inputStyle}
+                    placeholder="Paste your exported JSON data here..."
+                  />
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Paste JSON Data
-                    </label>
-                    <textarea
-                      value={importData}
-                      onChange={(e) => setImportData(e.target.value)}
-                      rows={10}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Paste your exported JSON data here..."
-                    />
-                  </div>
-
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-                    <div className="flex items-start">
-                      <span className="text-red-600 mr-3">⚠️</span>
-                      <div>
-                        <h4 className="font-medium text-red-900">Warning</h4>
-                        <p className="text-sm text-red-700">
-                          Importing data will merge with existing data. This action cannot be undone.
-                        </p>
-                      </div>
+                <div
+                  className="p-4 rounded-lg"
+                  style={{ background: 'rgba(201, 100, 100, 0.1)', border: '1px solid rgba(201, 100, 100, 0.2)' }}
+                >
+                  <div className="flex items-start">
+                    <span style={{ color: '#c96464' }} className="mr-3">⚠️</span>
+                    <div>
+                      <h4 className="font-medium" style={{ color: 'var(--color-charcoal)' }}>Warning</h4>
+                      <p className="text-sm" style={{ color: 'var(--color-slate)' }}>
+                        Importing data will merge with existing data. This action cannot be undone.
+                      </p>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
-                  <button
-                    onClick={() => {
-                      setShowImportModal(false);
-                      setImportData('');
-                    }}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleImportData}
-                    disabled={!importData.trim()}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300"
-                  >
-                    Import Data
-                  </button>
-                </div>
+              <div
+                className="flex justify-end space-x-3 mt-6 pt-6"
+                style={{ borderTop: '1px solid var(--color-border)' }}
+              >
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportData('');
+                  }}
+                  className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+                  style={{ background: 'transparent', color: 'var(--color-stone)', border: '1px solid var(--color-border)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImportData}
+                  disabled={!importData.trim()}
+                  className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+                  style={{
+                    background: importData.trim()
+                      ? 'linear-gradient(135deg, var(--color-gym) 0%, #6B8F70 100%)'
+                      : 'var(--color-ivory)',
+                    color: importData.trim() ? 'white' : 'var(--color-mist)',
+                    boxShadow: importData.trim() ? '0 2px 8px rgba(139, 159, 130, 0.3)' : 'none'
+                  }}
+                >
+                  Import Data
+                </button>
               </div>
             </div>
           </div>
-        )
-      }
-    </div >
+        </div>
+      )}
+    </div>
   );
 }

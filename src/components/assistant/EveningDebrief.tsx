@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { DatabaseService } from '@/lib/database';
-import { PlanOutput, ScheduledBlock } from '@/types';
+import type { ScheduledBlock } from '@/types';
 import { format } from 'date-fns';
 
 export default function EveningDebrief() {
@@ -10,15 +10,7 @@ export default function EveningDebrief() {
     const [incompleteItems, setIncompleteItems] = useState<ScheduledBlock[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    useEffect(() => {
-        // Trigger manually or via checking time/actions?
-        // For V1, let's listen to a custom event 'assistant-trigger-debrief'
-        const handleTrigger = () => checkDebrief();
-        window.addEventListener('assistant-trigger-debrief', handleTrigger);
-        return () => window.removeEventListener('assistant-trigger-debrief', handleTrigger);
-    }, []);
-
-    const checkDebrief = async () => {
+    const checkDebrief = useCallback(async () => {
         const today = format(new Date(), 'yyyy-MM-dd');
         const plan = await DatabaseService.getPlan(today);
         if (!plan) return;
@@ -42,7 +34,15 @@ export default function EveningDebrief() {
 
         setIncompleteItems(incompleteBlocks);
         setIsOpen(true);
-    };
+    }, []);
+
+    useEffect(() => {
+        // Trigger manually or via checking time/actions?
+        // For V1, let's listen to a custom event 'assistant-trigger-debrief'
+        const handleTrigger = () => checkDebrief();
+        window.addEventListener('assistant-trigger-debrief', handleTrigger);
+        return () => window.removeEventListener('assistant-trigger-debrief', handleTrigger);
+    }, [checkDebrief]);
 
     const handleCloseDay = async () => {
         setIsProcessing(true);
@@ -86,7 +86,7 @@ export default function EveningDebrief() {
                         </div>
                     ) : (
                         <div>
-                            <p className="text-zinc-500 text-sm mb-4">You have {incompleteItems.length} incomplete tasks. We'll move them to suggestions for tomorrow.</p>
+                            <p className="text-zinc-500 text-sm mb-4">You have {incompleteItems.length} incomplete tasks. We&apos;ll move them to suggestions for tomorrow.</p>
                             <div className="space-y-2 mb-6 max-h-48 overflow-y-auto">
                                 {incompleteItems.map((item, idx) => (
                                     <div key={idx} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">

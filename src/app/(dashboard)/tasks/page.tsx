@@ -1,33 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
-import { DatabaseService } from '@/lib/database';
+import { DataService } from '@/lib/sync/DataService';
 import { Task } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingTask, setEditingTask] = useState<Partial<Task> | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'overdue'>('active');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingTask, setEditingTask] = useState<Partial<Task> | null>(null);
 
   useEffect(() => {
     loadTasks();
   }, []);
 
-  useEffect(() => {
-    filterTasks();
-  }, [tasks, filter]);
-
-  const loadTasks = async () => {
-    const allTasks = await DatabaseService.getAllTasks();
-    setTasks(allTasks);
-  };
-
-  const filterTasks = () => {
+  const filterTasks = useCallback(() => {
     const today = new Date();
 
     switch (filter) {
@@ -48,7 +40,22 @@ export default function TasksPage() {
       default:
         setFilteredTasks(tasks);
     }
+  }, [tasks, filter]);
+
+  useEffect(() => {
+    filterTasks();
+  }, [filterTasks]);
+
+  const loadTasks = async () => {
+    try {
+      const allTasks = await DataService.getAllTasks();
+      setTasks(allTasks);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+
 
   const handleAddTask = () => {
     setEditingTask({
@@ -62,13 +69,11 @@ export default function TasksPage() {
       isActive: true,
     });
     setShowForm(true);
-    setIsEditing(true);
   };
 
   const handleEditTask = (task: Task) => {
     setEditingTask({ ...task });
     setShowForm(true);
-    setIsEditing(true);
   };
 
   const handleSaveTask = async () => {
@@ -77,47 +82,51 @@ export default function TasksPage() {
       return;
     }
 
-    const task: Task = {
-      id: editingTask.id || uuidv4(),
-      title: editingTask.title.trim(),
-      description: editingTask.description?.trim(),
-      estimatedDuration: editingTask.estimatedDuration || 30,
-      dueDate: editingTask.dueDate,
-      priority: editingTask.priority || 3,
-      category: editingTask.category || 'life',
-      energyLevel: editingTask.energyLevel || 'medium',
-      timeWindowPreference: editingTask.timeWindowPreference,
-      isSplittable: editingTask.isSplittable ?? false,
-      chunkSize: editingTask.chunkSize,
-      dependencies: editingTask.dependencies || [],
-      isCompleted: editingTask.isCompleted ?? false,
-      isActive: editingTask.isActive ?? true,
-      createdAt: editingTask.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    setIsSaving(true);
+    try {
+      const task: Task = {
+        id: editingTask.id || uuidv4(),
+        title: editingTask.title.trim(),
+        description: editingTask.description?.trim(),
+        estimatedDuration: editingTask.estimatedDuration || 30,
+        dueDate: editingTask.dueDate,
+        priority: editingTask.priority || 3,
+        category: editingTask.category || 'life',
+        energyLevel: editingTask.energyLevel || 'medium',
+        timeWindowPreference: editingTask.timeWindowPreference,
+        isSplittable: editingTask.isSplittable ?? false,
+        chunkSize: editingTask.chunkSize,
+        dependencies: editingTask.dependencies || [],
+        isCompleted: editingTask.isCompleted ?? false,
+        isActive: editingTask.isActive ?? true,
+        createdAt: editingTask.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    await DatabaseService.saveTask(task);
-    await loadTasks();
+      await DataService.saveTask(task);
+      await loadTasks();
 
-    setShowForm(false);
-    setIsEditing(false);
-    setEditingTask(null);
+      setShowForm(false);
+      setEditingTask(null);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteTask = async (task: Task) => {
     if (confirm(`Are you sure you want to delete "${task.title}"?`)) {
-      await DatabaseService.deleteTask(task.id);
+      await DataService.deleteTask(task.id);
       await loadTasks();
     }
   };
 
   const handleToggleComplete = async (task: Task) => {
-    await DatabaseService.completeTask(task.id);
+    await DataService.completeTask(task.id);
     await loadTasks();
   };
 
   const handleToggleActive = async (task: Task) => {
-    await DatabaseService.saveTask({
+    await DataService.saveTask({
       ...task,
       isActive: !task.isActive,
       updatedAt: new Date().toISOString(),
@@ -259,6 +268,59 @@ export default function TasksPage() {
     }).length,
     all: tasks.length,
   };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Skeleton Header */}
+        <div
+          className="rounded-xl p-8 animate-pulse"
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <div className="h-8 w-36 rounded" style={{ background: 'var(--color-ivory)' }} />
+          <div className="h-4 w-72 rounded mt-2" style={{ background: 'var(--color-ivory)' }} />
+        </div>
+        {/* Skeleton Filters */}
+        <div
+          className="rounded-xl p-4 animate-pulse"
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-10 w-24 rounded-lg" style={{ background: 'var(--color-ivory)' }} />
+            ))}
+          </div>
+        </div>
+        {/* Skeleton Task List */}
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl p-6 animate-pulse"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-lg" style={{ background: 'var(--color-ivory)' }} />
+                <div className="flex-1">
+                  <div className="h-5 w-48 rounded mb-2" style={{ background: 'var(--color-ivory)' }} />
+                  <div className="h-3 w-32 rounded" style={{ background: 'var(--color-ivory)' }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -434,6 +496,7 @@ export default function TasksPage() {
                       color: task.isCompleted ? 'var(--color-gym)' : 'var(--color-mist)'
                     }}
                     title={task.isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+                    aria-label={task.isCompleted ? 'Mark task as incomplete' : 'Mark task as complete'}
                   >
                     {task.isCompleted ? (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -450,6 +513,7 @@ export default function TasksPage() {
                     className="p-2 rounded-lg transition-colors"
                     style={{ color: task.isActive ? 'var(--color-work)' : 'var(--color-mist)' }}
                     title={task.isActive ? 'Deactivate' : 'Activate'}
+                    aria-label={task.isActive ? 'Deactivate task' : 'Activate task'}
                   >
                     {task.isActive ? (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -467,6 +531,7 @@ export default function TasksPage() {
                     className="p-2 rounded-lg transition-colors"
                     style={{ color: 'var(--color-mist)' }}
                     title="Edit"
+                    aria-label="Edit task"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
@@ -477,6 +542,7 @@ export default function TasksPage() {
                     className="p-2 rounded-lg transition-colors"
                     style={{ color: 'var(--color-mist)' }}
                     title="Delete"
+                    aria-label="Delete task"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -587,11 +653,11 @@ export default function TasksPage() {
                 <button
                   onClick={() => {
                     setShowForm(false);
-                    setIsEditing(false);
                     setEditingTask(null);
                   }}
                   className="p-2 rounded-lg transition-colors"
                   style={{ color: 'var(--color-mist)' }}
+                  aria-label="Close form"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -602,10 +668,12 @@ export default function TasksPage() {
               <div className="space-y-6">
                 {/* Title */}
                 <div>
-                  <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                  <label htmlFor="task-title" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                     Task Title *
                   </label>
                   <input
+                    id="task-title"
+                    name="task-title"
                     type="text"
                     value={editingTask.title || ''}
                     onChange={(e) => setEditingTask(prev => ({ ...prev, title: e.target.value }))}
@@ -617,10 +685,12 @@ export default function TasksPage() {
 
                 {/* Description */}
                 <div>
-                  <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                  <label htmlFor="task-description" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                     Description (Optional)
                   </label>
                   <textarea
+                    id="task-description"
+                    name="task-description"
                     value={editingTask.description || ''}
                     onChange={(e) => setEditingTask(prev => ({ ...prev, description: e.target.value }))}
                     rows={3}
@@ -633,10 +703,12 @@ export default function TasksPage() {
                 {/* Duration and Category */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="task-duration" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Estimated Duration (min)
                     </label>
                     <input
+                      id="task-duration"
+                      name="task-duration"
                       type="number"
                       min="5"
                       max="480"
@@ -648,10 +720,12 @@ export default function TasksPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="task-category" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Category
                     </label>
                     <select
+                      id="task-category"
+                      name="task-category"
                       value={editingTask.category || 'life'}
                       onChange={(e) => setEditingTask(prev => ({ ...prev, category: e.target.value as Task['category'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -670,10 +744,12 @@ export default function TasksPage() {
                 {/* Priority, Energy, Time Window */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="task-priority" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Priority
                     </label>
                     <select
+                      id="task-priority"
+                      name="task-priority"
                       value={editingTask.priority || 3}
                       onChange={(e) => setEditingTask(prev => ({ ...prev, priority: parseInt(e.target.value) as Task['priority'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -688,10 +764,12 @@ export default function TasksPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="task-energy" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Energy Level
                     </label>
                     <select
+                      id="task-energy"
+                      name="task-energy"
                       value={editingTask.energyLevel || 'medium'}
                       onChange={(e) => setEditingTask(prev => ({ ...prev, energyLevel: e.target.value as Task['energyLevel'] }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -704,10 +782,12 @@ export default function TasksPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                    <label htmlFor="task-time-preference" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                       Time Preference
                     </label>
                     <select
+                      id="task-time-preference"
+                      name="task-time-preference"
                       value={editingTask.timeWindowPreference || ''}
                       onChange={(e) => setEditingTask(prev => ({ ...prev, timeWindowPreference: e.target.value as Task['timeWindowPreference'] || undefined }))}
                       className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
@@ -723,10 +803,12 @@ export default function TasksPage() {
 
                 {/* Due Date */}
                 <div>
-                  <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                  <label htmlFor="task-due-date" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                     Due Date (Optional)
                   </label>
                   <input
+                    id="task-due-date"
+                    name="task-due-date"
                     type="date"
                     value={editingTask.dueDate || ''}
                     onChange={(e) => setEditingTask(prev => ({ ...prev, dueDate: e.target.value || undefined }))}
@@ -744,6 +826,7 @@ export default function TasksPage() {
                     <input
                       type="checkbox"
                       id="splittable"
+                      name="splittable"
                       checked={editingTask.isSplittable || false}
                       onChange={(e) => setEditingTask(prev => ({ ...prev, isSplittable: e.target.checked }))}
                       className="w-4 h-4 rounded"
@@ -760,10 +843,12 @@ export default function TasksPage() {
 
                   {editingTask.isSplittable && (
                     <div className="mt-4 ml-7">
-                      <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                      <label htmlFor="task-chunk-size" className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
                         Chunk Size (minutes)
                       </label>
                       <input
+                        id="task-chunk-size"
+                        name="task-chunk-size"
                         type="number"
                         min="5"
                         max="60"
@@ -785,7 +870,6 @@ export default function TasksPage() {
                 <button
                   onClick={() => {
                     setShowForm(false);
-                    setIsEditing(false);
                     setEditingTask(null);
                   }}
                   className="px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200"
@@ -799,14 +883,17 @@ export default function TasksPage() {
                 </button>
                 <button
                   onClick={handleSaveTask}
+                  disabled={isSaving}
                   className="px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200"
                   style={{
-                    background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
-                    color: 'white',
-                    boxShadow: '0 2px 8px rgba(184, 151, 107, 0.3)'
+                    background: isSaving
+                      ? 'var(--color-ivory)'
+                      : 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
+                    color: isSaving ? 'var(--color-mist)' : 'white',
+                    boxShadow: isSaving ? 'none' : '0 2px 8px rgba(184, 151, 107, 0.3)'
                   }}
                 >
-                  {editingTask.id ? 'Update' : 'Create'} Task
+                  {isSaving ? 'Saving...' : (editingTask.id ? 'Update' : 'Create') + ' Task'}
                 </button>
               </div>
             </div>

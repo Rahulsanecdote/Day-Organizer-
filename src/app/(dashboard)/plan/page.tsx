@@ -1,70 +1,603 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { format, parse, differenceInMinutes } from 'date-fns';
-import { DatabaseService } from '@/lib/database';
-import { PlanOutput, ScheduledBlock, UserPreferences } from '@/types';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { format, parse, differenceInMinutes, addMinutes } from 'date-fns';
+import { DataService } from '@/lib/sync/DataService';
+import { logger } from '@/lib/logger';
+import { NotificationService } from '@/lib/notifications';
+import NotificationButton from '@/components/NotificationButton';
+import { PlanOutput, ScheduledBlock, UserPreferences, BlockType } from '@/types';
+
+// Edit Modal Component
+function EditBlockModal({
+  block,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  block: ScheduledBlock;
+  onSave: (updated: ScheduledBlock) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [editedBlock, setEditedBlock] = useState(block);
+
+  const handleSave = () => {
+    onSave(editedBlock);
+    onClose();
+  };
+
+  const blockTypes: BlockType[] = ['work', 'habit', 'task', 'meal', 'gym', 'break', 'other'];
+  const energyLevels = ['low', 'medium', 'high'] as const;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0, 0, 0, 0.5)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl p-8"
+        style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-xl mb-6"
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontWeight: 500,
+            color: 'var(--color-charcoal)'
+          }}
+        >
+          Edit Block
+        </h2>
+
+        <div className="space-y-5">
+          {/* Title */}
+          <div>
+            <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+              Title
+            </label>
+            <input
+              type="text"
+              value={editedBlock.title}
+              onChange={(e) => setEditedBlock({ ...editedBlock, title: e.target.value })}
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-charcoal)'
+              }}
+            />
+          </div>
+
+          {/* Time */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                Start Time
+              </label>
+              <input
+                type="time"
+                value={editedBlock.start}
+                onChange={(e) => setEditedBlock({ ...editedBlock, start: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-charcoal)'
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                End Time
+              </label>
+              <input
+                type="time"
+                value={editedBlock.end}
+                onChange={(e) => setEditedBlock({ ...editedBlock, end: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-charcoal)'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Type */}
+          <div>
+            <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+              Type
+            </label>
+            <select
+              value={editedBlock.type}
+              onChange={(e) => setEditedBlock({ ...editedBlock, type: e.target.value as BlockType })}
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-charcoal)'
+              }}
+            >
+              {blockTypes.map(type => (
+                <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Energy Level */}
+          <div>
+            <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+              Energy Level
+            </label>
+            <div className="flex gap-2">
+              {energyLevels.map(level => (
+                <button
+                  key={level}
+                  onClick={() => setEditedBlock({ ...editedBlock, energyLevel: level })}
+                  className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                  style={{
+                    background: editedBlock.energyLevel === level ? 'var(--color-ivory)' : 'transparent',
+                    border: `1px solid ${editedBlock.energyLevel === level ? 'var(--color-gold-light)' : 'var(--color-border)'}`,
+                    color: editedBlock.energyLevel === level ? 'var(--color-charcoal)' : 'var(--color-mist)'
+                  }}
+                >
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 mt-8">
+          {!block.locked && (
+            <button
+              onClick={() => { onDelete(block.id); onClose(); }}
+              className="px-4 py-2.5 rounded-lg text-sm font-medium"
+              style={{
+                background: 'rgba(200, 100, 100, 0.1)',
+                color: '#c86464',
+                border: '1px solid rgba(200, 100, 100, 0.3)'
+              }}
+            >
+              Delete
+            </button>
+          )}
+          <div className="flex-1" />
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-lg text-sm font-medium"
+            style={{
+              background: 'transparent',
+              color: 'var(--color-stone)',
+              border: '1px solid var(--color-border)'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-6 py-2.5 rounded-lg text-sm font-medium"
+            style={{
+              background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
+              color: 'white',
+              boxShadow: '0 2px 8px rgba(184, 151, 107, 0.3)'
+            }}
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Add Block Modal Component
+function AddBlockModal({
+  onAdd,
+  onClose,
+}: {
+  onAdd: (block: Omit<ScheduledBlock, 'id'>) => void;
+  onClose: () => void;
+}) {
+  const [newBlock, setNewBlock] = useState({
+    title: '',
+    start: '12:00',
+    end: '13:00',
+    type: 'break' as BlockType,
+    energyLevel: 'low' as 'low' | 'medium' | 'high',
+  });
+
+  const handleAdd = () => {
+    if (!newBlock.title) return;
+    onAdd({
+      ...newBlock,
+      locked: false,
+      completed: false,
+    });
+    onClose();
+  };
+
+  const quickOptions = [
+    { label: '15min Break', type: 'break' as BlockType, duration: 15 },
+    { label: '30min Break', type: 'break' as BlockType, duration: 30 },
+    { label: 'Focus Time', type: 'task' as BlockType, duration: 60 },
+    { label: 'Personal Time', type: 'other' as BlockType, duration: 45 },
+  ];
+
+  const blockTypes: BlockType[] = ['break', 'task', 'habit', 'meal', 'other'];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0, 0, 0, 0.5)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl p-8"
+        style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-xl mb-6"
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontWeight: 500,
+            color: 'var(--color-charcoal)'
+          }}
+        >
+          Add Block
+        </h2>
+
+        {/* Quick Options */}
+        <div className="mb-6">
+          <label className="block text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--color-mist)' }}>
+            Quick Add
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {quickOptions.map(opt => (
+              <button
+                key={opt.label}
+                onClick={() => {
+                  const startTime = parse(newBlock.start, 'HH:mm', new Date());
+                  const endTime = addMinutes(startTime, opt.duration);
+                  setNewBlock({
+                    ...newBlock,
+                    title: opt.label,
+                    type: opt.type,
+                    end: format(endTime, 'HH:mm'),
+                  });
+                }}
+                className="p-3 rounded-lg text-sm text-left transition-all"
+                style={{
+                  background: 'var(--color-ivory)',
+                  border: '1px solid var(--color-border-light)',
+                  color: 'var(--color-charcoal)'
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          {/* Title */}
+          <div>
+            <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+              Title
+            </label>
+            <input
+              type="text"
+              value={newBlock.title}
+              onChange={(e) => setNewBlock({ ...newBlock, title: e.target.value })}
+              placeholder="What are you planning?"
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-charcoal)'
+              }}
+            />
+          </div>
+
+          {/* Time */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                Start
+              </label>
+              <input
+                type="time"
+                value={newBlock.start}
+                onChange={(e) => setNewBlock({ ...newBlock, start: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-charcoal)'
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+                End
+              </label>
+              <input
+                type="time"
+                value={newBlock.end}
+                onChange={(e) => setNewBlock({ ...newBlock, end: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-charcoal)'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Type */}
+          <div>
+            <label className="block text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--color-mist)' }}>
+              Type
+            </label>
+            <select
+              value={newBlock.type}
+              onChange={(e) => setNewBlock({ ...newBlock, type: e.target.value as BlockType })}
+              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-charcoal)'
+              }}
+            >
+              {blockTypes.map(type => (
+                <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 mt-8">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium"
+            style={{
+              background: 'transparent',
+              color: 'var(--color-stone)',
+              border: '1px solid var(--color-border)'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAdd}
+            disabled={!newBlock.title}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: newBlock.title ? 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)' : 'var(--color-ivory)',
+              color: newBlock.title ? 'white' : 'var(--color-mist)',
+              boxShadow: newBlock.title ? '0 2px 8px rgba(184, 151, 107, 0.3)' : 'none'
+            }}
+          >
+            Add to Schedule
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PlanPage() {
+  const router = useRouter();
   const [plan, setPlan] = useState<PlanOutput | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [draggedBlock, setDraggedBlock] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(true);
+  const [editingBlock, setEditingBlock] = useState<ScheduledBlock | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [sortBy, setSortBy] = useState<'time' | 'priority' | 'type'>('time');
+  const [filterBy, setFilterBy] = useState<'all' | 'incomplete' | BlockType>('all');
+
+  const loadPlan = useCallback(async () => {
+    try {
+      const prefs = await DataService.getPreferences();
+      if (prefs) setPreferences(prefs);
+
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const existingPlan = await DataService.getPlan(today);
+
+      if (existingPlan) {
+        setPlan(existingPlan);
+      } else {
+        router.push('/today-setup');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
 
   useEffect(() => {
     loadPlan();
-  }, []);
+  }, [loadPlan]);
 
-  const loadPlan = async () => {
-    const prefs = await DatabaseService.getPreferences();
-    if (prefs) setPreferences(prefs);
-
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const existingPlan = await DatabaseService.getPlan(today);
-
-    if (existingPlan) {
-      setPlan(existingPlan);
-    } else {
-      window.location.href = '/today-setup';
+  // Schedule reminders when plan and preferences are loaded
+  useEffect(() => {
+    if (plan && preferences?.notifications.enabled) {
+      NotificationService.scheduleAllReminders(
+        plan.blocks,
+        preferences.notifications.reminderMinutes
+      );
     }
-  };
+    return () => {
+      NotificationService.clearAllReminders();
+    };
+  }, [plan, preferences]);
 
-  const handleReoptimize = async () => {
-    if (!preferences) return;
+  const handleSmartReoptimize = async () => {
+    if (!preferences || !plan) return;
 
     setIsOptimizing(true);
 
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
-      const dailyInput = await DatabaseService.getDailyInput(today, preferences.timezone);
+      const dailyInput = await DataService.getDailyInput(today, preferences.timezone);
 
       if (!dailyInput) {
         alert('No daily input found. Please set up your day first.');
         return;
       }
 
-      const habits = await DatabaseService.getAllHabits();
-      const tasks = await DatabaseService.getAllTasks();
+      // Fetch Google Calendar events if connected
+      let googleEvents: { start: string; end: string; title: string }[] = [];
+      if (preferences.googleCalendarTokens) {
+        try {
+          const res = await fetch('/api/google/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tokens: preferences.googleCalendarTokens,
+              start: new Date(today).toISOString(),
+              end: new Date(today).toISOString()
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            googleEvents = (data.events || []).filter((e: any) => e && e.start && e.end).map((e: any) => ({
+              title: e.title,
+              start: e.start,
+              end: e.end,
+              type: 'appointment',
+              locked: true
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to fetch Google Calendar events', error);
+        }
+      }
+
+      // Get locked blocks as additional fixed events
+      const lockedBlocks = plan.blocks.filter(b => b.locked);
+      const lockedAsFixed = lockedBlocks.filter(b => b && b.start && b.end).map(b => ({
+        title: b.title,
+        start: b.start,
+        end: b.end,
+        type: b.type as 'work' | 'meal' | 'appointment' | 'call' | 'other',
+        locked: true,
+      }));
+
+      // Merge with existing fixed events (avoid duplicates)
+      const fixedEvents = (dailyInput.fixedEvents || []).filter(e => e && e.start && e.end);
+      const existingIds = new Set(fixedEvents.map(e => `${e.start}-${e.end}`));
+
+      const mergedEvents = [
+        ...fixedEvents,
+        // Add Google Events that don't overlap exactly with existing manual inputs
+        ...googleEvents.filter(e => !existingIds.has(`${e.start}-${e.end}`)).map(e => ({
+          ...e,
+          type: 'appointment' as const
+        })),
+        // Add Locked blocks that don't overlap
+        ...lockedAsFixed.filter(e => !existingIds.has(`${e.start}-${e.end}`))
+      ];
+
+      const augmentedInput = {
+        ...dailyInput,
+        fixedEvents: mergedEvents,
+      };
+
+      const habits = await DataService.getAllHabits();
+      const tasks = await DataService.getAllTasks();
 
       const { SchedulingEngine } = await import('@/lib/scheduling-engine');
       const scheduler = new SchedulingEngine(
-        dailyInput,
+        augmentedInput,
         habits,
         tasks,
         preferences.gymSettings,
-        preferences
+        preferences,
+        new Date()
       );
       const newPlan = scheduler.generatePlan();
 
-      await DatabaseService.savePlan(newPlan);
-      setPlan(newPlan);
+      // Preserve locked blocks' original data
+      const preservedBlocks = [
+        ...lockedBlocks,
+        ...newPlan.blocks.filter(b => !lockedBlocks.some(lb =>
+          lb.start === b.start && lb.end === b.end
+        ))
+      ].sort((a, b) => a.start.localeCompare(b.start));
+
+      const mergedPlan = {
+        ...newPlan,
+        blocks: preservedBlocks,
+      };
+
+      await DataService.savePlan(mergedPlan);
+      setPlan(mergedPlan);
     } catch (error) {
-      console.error('Failed to reoptimize:', error);
+      logger.error('Failed to reoptimize', { error: String(error) });
       alert('Failed to reoptimize plan. Please try again.');
     } finally {
       setIsOptimizing(false);
     }
+  };
+
+  const handleEditBlock = async (updated: ScheduledBlock) => {
+    if (!plan) return;
+
+    const updatedBlocks = plan.blocks.map(block =>
+      block.id === updated.id ? updated : block
+    ).sort((a, b) => a.start.localeCompare(b.start));
+
+    const updatedPlan = { ...plan, blocks: updatedBlocks };
+    setPlan(updatedPlan);
+    await DataService.savePlan(updatedPlan);
+  };
+
+  const handleDeleteBlock = async (blockId: string) => {
+    if (!plan) return;
+
+    const updatedBlocks = plan.blocks.filter(b => b.id !== blockId);
+    const updatedPlan = { ...plan, blocks: updatedBlocks };
+    setPlan(updatedPlan);
+    await DataService.savePlan(updatedPlan);
+  };
+
+  const handleAddBlock = async (newBlock: Omit<ScheduledBlock, 'id'>) => {
+    if (!plan) return;
+
+    const block: ScheduledBlock = {
+      ...newBlock,
+      id: `custom-${Date.now()}`,
+    };
+
+    const updatedBlocks = [...plan.blocks, block].sort((a, b) =>
+      a.start.localeCompare(b.start)
+    );
+
+    const updatedPlan = { ...plan, blocks: updatedBlocks };
+    setPlan(updatedPlan);
+    await DataService.savePlan(updatedPlan);
   };
 
   const handleToggleCompletion = async (blockId: string) => {
@@ -78,10 +611,10 @@ export default function PlanPage() {
 
     const updatedPlan = { ...plan, blocks: updatedBlocks };
     setPlan(updatedPlan);
-    await DatabaseService.savePlan(updatedPlan);
+    await DataService.savePlan(updatedPlan);
   };
 
-  const handleToggleLock = (blockId: string) => {
+  const handleToggleLock = async (blockId: string) => {
     if (!plan) return;
 
     const updatedBlocks = plan.blocks.map(block =>
@@ -90,7 +623,9 @@ export default function PlanPage() {
         : block
     );
 
-    setPlan({ ...plan, blocks: updatedBlocks });
+    const updatedPlan = { ...plan, blocks: updatedBlocks };
+    setPlan(updatedPlan);
+    await DataService.savePlan(updatedPlan);
   };
 
   const handleDragStart = (e: React.DragEvent, blockId: string) => {
@@ -103,7 +638,7 @@ export default function PlanPage() {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, targetBlockId: string) => {
+  const handleDrop = async (e: React.DragEvent, targetBlockId: string) => {
     e.preventDefault();
 
     if (!plan || !draggedBlock || draggedBlock === targetBlockId) return;
@@ -121,7 +656,9 @@ export default function PlanPage() {
 
     const updatedBlocks = updateBlockTimes(newBlocks);
 
-    setPlan({ ...plan, blocks: updatedBlocks });
+    const updatedPlan = { ...plan, blocks: updatedBlocks };
+    setPlan(updatedPlan);
+    await DataService.savePlan(updatedPlan);
     setDraggedBlock(null);
   };
 
@@ -149,6 +686,29 @@ export default function PlanPage() {
     }
 
     return updatedBlocks;
+  };
+
+  // Get filtered and sorted blocks
+  const getDisplayBlocks = () => {
+    if (!plan) return [];
+
+    let blocks = [...plan.blocks];
+
+    // Filter
+    if (filterBy === 'incomplete') {
+      blocks = blocks.filter(b => !b.completed);
+    } else if (filterBy !== 'all') {
+      blocks = blocks.filter(b => b.type === filterBy);
+    }
+
+    // Sort
+    if (sortBy === 'time') {
+      blocks.sort((a, b) => a.start.localeCompare(b.start));
+    } else if (sortBy === 'type') {
+      blocks.sort((a, b) => a.type.localeCompare(b.type));
+    }
+
+    return blocks;
   };
 
   const getBlockStyle = (type: ScheduledBlock['type']) => {
@@ -219,6 +779,45 @@ export default function PlanPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Skeleton Header */}
+        <div
+          className="rounded-xl p-8 animate-pulse"
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <div className="h-8 w-48 rounded" style={{ background: 'var(--color-ivory)' }} />
+          <div className="h-4 w-32 rounded mt-2" style={{ background: 'var(--color-ivory)' }} />
+        </div>
+        {/* Skeleton Blocks */}
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl p-6 animate-pulse"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg" style={{ background: 'var(--color-ivory)' }} />
+                <div className="flex-1">
+                  <div className="h-4 w-32 rounded mb-2" style={{ background: 'var(--color-ivory)' }} />
+                  <div className="h-3 w-20 rounded" style={{ background: 'var(--color-ivory)' }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (!plan) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -231,7 +830,7 @@ export default function PlanPage() {
         >
           <p style={{ color: 'var(--color-slate)' }}>No plan found for today. Please set up your day first.</p>
           <button
-            onClick={() => window.location.href = '/today-setup'}
+            onClick={() => router.push('/today-setup')}
             className="mt-6 px-6 py-3 rounded-lg font-medium transition-all duration-200"
             style={{
               background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
@@ -246,8 +845,28 @@ export default function PlanPage() {
     );
   }
 
+  const displayBlocks = getDisplayBlocks();
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+      {/* Edit Modal */}
+      {editingBlock && (
+        <EditBlockModal
+          block={editingBlock}
+          onSave={handleEditBlock}
+          onDelete={handleDeleteBlock}
+          onClose={() => setEditingBlock(null)}
+        />
+      )}
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <AddBlockModal
+          onAdd={handleAddBlock}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
+
       {/* Header */}
       <div
         className="rounded-xl p-8 flex justify-between items-start"
@@ -266,13 +885,40 @@ export default function PlanPage() {
               color: 'var(--color-charcoal)'
             }}
           >
-            Today's Plan
+            Today&apos;s Plan
           </h1>
-          <p style={{ color: 'var(--color-slate)' }}>
-            {format(new Date(plan.date), 'EEEE, MMMM d, yyyy')}
-          </p>
+          <div>
+            <p style={{ color: 'var(--color-slate)' }}>
+              {format(new Date(plan.date), 'EEEE, MMMM d, yyyy')}
+            </p>
+            {plan.generatedAt && (
+              <p className="text-xs uppercase tracking-wider mt-1" style={{ color: 'var(--color-mist)' }}>
+                Generated {format(new Date(plan.generatedAt), 'h:mm a')}
+                {plan.isLateNightMode && (
+                  <span className="ml-2 font-medium" style={{ color: 'var(--color-sleep)' }}>
+                    🌙 Late Night Mode
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <NotificationButton />
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2"
+            style={{
+              background: 'var(--color-ivory)',
+              color: 'var(--color-charcoal)',
+              border: '1px solid var(--color-border-light)'
+            }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add Block
+          </button>
           <button
             onClick={() => setShowStats(!showStats)}
             className="px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200"
@@ -285,7 +931,7 @@ export default function PlanPage() {
             {showStats ? 'Hide Stats' : 'Show Stats'}
           </button>
           <button
-            onClick={handleReoptimize}
+            onClick={handleSmartReoptimize}
             disabled={isOptimizing}
             className="px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200"
             style={{
@@ -298,6 +944,25 @@ export default function PlanPage() {
           </button>
         </div>
       </div>
+
+      {/* Late Night Banner */}
+      {plan.isLateNightMode && (
+        <div
+          className="rounded-xl p-4 mb-6 flex items-center gap-4"
+          style={{
+            background: 'rgba(100, 116, 139, 0.08)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <span className="text-2xl">🌙</span>
+          <div>
+            <h3 className="font-medium text-sm" style={{ color: 'var(--color-charcoal)' }}>Late Night Mode Active</h3>
+            <p className="text-sm opacity-80" style={{ color: 'var(--color-slate)' }}>
+              Since it&apos;s late, we&apos;ve switched to a wind-down focus.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       {showStats && (
@@ -350,6 +1015,62 @@ export default function PlanPage() {
         </div>
       )}
 
+      {/* Timeline Controls */}
+      <div
+        className="rounded-xl p-6"
+        style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          boxShadow: 'var(--shadow-soft)'
+        }}
+      >
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--color-mist)' }}>Sort:</span>
+            {(['time', 'type'] as const).map(option => (
+              <button
+                key={option}
+                onClick={() => setSortBy(option)}
+                className="px-3 py-1.5 rounded-lg text-sm transition-all"
+                style={{
+                  background: sortBy === option ? 'var(--color-ivory)' : 'transparent',
+                  color: sortBy === option ? 'var(--color-charcoal)' : 'var(--color-mist)',
+                  border: `1px solid ${sortBy === option ? 'var(--color-gold-light)' : 'transparent'}`
+                }}
+              >
+                {option.charAt(0).toUpperCase() + option.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-6" style={{ background: 'var(--color-border)' }} />
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--color-mist)' }}>Filter:</span>
+            {(['all', 'incomplete'] as const).map(option => (
+              <button
+                key={option}
+                onClick={() => setFilterBy(option)}
+                className="px-3 py-1.5 rounded-lg text-sm transition-all"
+                style={{
+                  background: filterBy === option ? 'var(--color-ivory)' : 'transparent',
+                  color: filterBy === option ? 'var(--color-charcoal)' : 'var(--color-mist)',
+                  border: `1px solid ${filterBy === option ? 'var(--color-gold-light)' : 'transparent'}`
+                }}
+              >
+                {option.charAt(0).toUpperCase() + option.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1" />
+
+          <span className="text-sm" style={{ color: 'var(--color-mist)' }}>
+            {displayBlocks.length} blocks · Click to edit · Drag to reorder
+          </span>
+        </div>
+      </div>
+
       {/* Timeline */}
       <div
         className="rounded-xl p-8"
@@ -378,7 +1099,7 @@ export default function PlanPage() {
           />
 
           <div className="space-y-4">
-            {plan.blocks.map((block) => {
+            {displayBlocks.map((block) => {
               const style = getBlockStyle(block.type);
               return (
                 <div
@@ -411,7 +1132,8 @@ export default function PlanPage() {
 
                   {/* Block card */}
                   <div
-                    className="flex-1 p-5 rounded-xl transition-all duration-200 cursor-pointer"
+                    onClick={() => setEditingBlock(block)}
+                    className="flex-1 p-5 rounded-xl transition-all duration-200 cursor-pointer hover:scale-[1.01]"
                     style={{
                       background: style.bg,
                       borderLeft: `3px solid ${style.border}`,
@@ -447,13 +1169,14 @@ export default function PlanPage() {
 
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => handleToggleLock(block.id)}
+                          onClick={(e) => { e.stopPropagation(); handleToggleLock(block.id); }}
                           className="p-2 rounded-lg transition-colors"
                           style={{
                             background: block.locked ? 'var(--color-ivory)' : 'transparent',
                             color: block.locked ? 'var(--color-gold-dark)' : 'var(--color-mist)'
                           }}
                           title={block.locked ? 'Unlock' : 'Lock'}
+                          aria-label={block.locked ? 'Unlock block' : 'Lock block'}
                         >
                           {block.locked ? (
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -467,13 +1190,14 @@ export default function PlanPage() {
                         </button>
 
                         <button
-                          onClick={() => handleToggleCompletion(block.id)}
+                          onClick={(e) => { e.stopPropagation(); handleToggleCompletion(block.id); }}
                           className="p-2 rounded-lg transition-colors"
                           style={{
                             background: block.completed ? 'rgba(139, 159, 130, 0.15)' : 'transparent',
                             color: block.completed ? 'var(--color-gym)' : 'var(--color-mist)'
                           }}
                           title={block.completed ? 'Mark as incomplete' : 'Mark as complete'}
+                          aria-label={block.completed ? 'Mark block as incomplete' : 'Mark block as complete'}
                         >
                           {block.completed ? (
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

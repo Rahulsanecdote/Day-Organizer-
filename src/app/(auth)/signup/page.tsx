@@ -1,9 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function SignupPage() {
+    const router = useRouter();
+    const { signUp, isCloudEnabled } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -13,6 +17,8 @@ export default function SignupPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [agreeToTerms, setAgreeToTerms] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData(prev => ({
@@ -23,24 +29,40 @@ export default function SignupPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
+        setSuccess(null);
 
         if (formData.password !== formData.confirmPassword) {
-            alert('Passwords do not match');
+            setError('Passwords do not match');
             return;
         }
 
         if (!agreeToTerms) {
-            alert('Please agree to the terms and conditions');
+            setError('Please agree to the terms and conditions');
+            return;
+        }
+
+        // If cloud sync is not enabled, just redirect (local-only mode)
+        if (!isCloudEnabled) {
+            router.push('/onboarding');
             return;
         }
 
         setIsLoading(true);
 
-        // Simulate signup - in production, connect to your auth service
-        setTimeout(() => {
+        const { error } = await signUp(formData.email, formData.password);
+
+        if (error) {
+            setError(error.message || 'Failed to create account');
             setIsLoading(false);
-            window.location.href = '/onboarding';
-        }, 1500);
+        } else {
+            setSuccess('Account created! Check your email to verify your account.');
+            setIsLoading(false);
+            // Optionally redirect after a delay
+            setTimeout(() => {
+                router.push('/onboarding');
+            }, 2000);
+        }
     };
 
     const getPasswordStrength = (password: string) => {
@@ -128,7 +150,7 @@ export default function SignupPage() {
                     className="text-xs"
                     style={{ color: 'rgba(255, 255, 255, 0.4)' }}
                 >
-                    © 2024 Daily Organizer. All rights reserved.
+                    © {new Date().getFullYear()} Daily Organizer. All rights reserved.
                 </p>
             </div>
 
@@ -179,7 +201,58 @@ export default function SignupPage() {
                             </p>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-5">
+                        {/* Local-only mode indicator */}
+                        {!isCloudEnabled && (
+                            <div
+                                className="mb-6 p-4 rounded-lg text-sm text-center"
+                                style={{
+                                    background: 'var(--color-ivory)',
+                                    border: '1px solid var(--color-border)'
+                                }}
+                            >
+                                <p style={{ color: 'var(--color-slate)' }}>
+                                    Cloud sync is not configured.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/onboarding')}
+                                    className="mt-2 font-medium transition-colors"
+                                    style={{ color: 'var(--color-gold-dark)' }}
+                                >
+                                    Continue in local-only mode →
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Error display */}
+                        {error && (
+                            <div
+                                className="mb-6 p-4 rounded-lg text-sm"
+                                style={{
+                                    background: '#FEF2F2',
+                                    border: '1px solid #FECACA',
+                                    color: '#DC2626'
+                                }}
+                            >
+                                {error}
+                            </div>
+                        )}
+
+                        {/* Success display */}
+                        {success && (
+                            <div
+                                className="mb-6 p-4 rounded-lg text-sm"
+                                style={{
+                                    background: '#F0FDF4',
+                                    border: '1px solid #BBF7D0',
+                                    color: '#16A34A'
+                                }}
+                            >
+                                {success}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} method="POST" className="space-y-5">
                             <div>
                                 <label
                                     className="block text-xs uppercase tracking-wider mb-2"
@@ -188,6 +261,7 @@ export default function SignupPage() {
                                     Full Name
                                 </label>
                                 <input
+                                    id="name"
                                     type="text"
                                     name="name"
                                     value={formData.name}
@@ -211,6 +285,7 @@ export default function SignupPage() {
                                     Email Address
                                 </label>
                                 <input
+                                    id="email"
                                     type="email"
                                     name="email"
                                     value={formData.email}
@@ -235,6 +310,7 @@ export default function SignupPage() {
                                 </label>
                                 <div className="relative">
                                     <input
+                                        id="password"
                                         type={showPassword ? 'text' : 'password'}
                                         name="password"
                                         value={formData.password}
@@ -301,6 +377,7 @@ export default function SignupPage() {
                                     Confirm Password
                                 </label>
                                 <input
+                                    id="confirmPassword"
                                     type={showPassword ? 'text' : 'password'}
                                     name="confirmPassword"
                                     value={formData.confirmPassword}
@@ -310,8 +387,8 @@ export default function SignupPage() {
                                     style={{
                                         background: 'var(--color-ivory)',
                                         border: `1px solid ${formData.confirmPassword && formData.password !== formData.confirmPassword
-                                                ? '#c96464'
-                                                : 'var(--color-border)'
+                                            ? '#c96464'
+                                            : 'var(--color-border)'
                                             }`,
                                         color: 'var(--color-charcoal)'
                                     }}
