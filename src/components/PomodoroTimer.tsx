@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { logger } from '@/lib/logger';
 
 type TimerMode = 'work' | 'break' | 'longBreak';
 
@@ -64,7 +65,7 @@ export default function PomodoroTimer() {
             oscillator.start();
             setTimeout(() => oscillator.stop(), 200);
         } catch {
-            console.log('Audio notification not available');
+            logger.debug('Audio notification not available');
         }
     }, []);
 
