@@ -12,15 +12,19 @@ export interface SessionData {
     csrfState?: string;
 }
 
-const sessionSecret = process.env.SESSION_SECRET;
-if (!sessionSecret) {
-    throw new Error(
-        'SESSION_SECRET environment variable is not set. Generate one with: openssl rand -base64 32'
-    );
-}
-
+// Password is read lazily via a getter so this module can be evaluated at
+// build time without SESSION_SECRET being present. The throw only fires when
+// an actual request calls getIronSession() and iron-session reads the property.
 export const sessionOptions: SessionOptions = {
-    password: sessionSecret,
+    get password(): string {
+        const secret = process.env.SESSION_SECRET;
+        if (!secret) {
+            throw new Error(
+                'SESSION_SECRET environment variable is not set. Generate one with: openssl rand -base64 32'
+            );
+        }
+        return secret;
+    },
     cookieName: 'day-organizer-session',
     cookieOptions: {
         secure: process.env.NODE_ENV === 'production',
