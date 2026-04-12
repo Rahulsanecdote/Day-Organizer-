@@ -42,28 +42,28 @@ describe('SyncService — queue & status', () => {
 
     it('queueChange increments pending count', () => {
         const service = SyncService.getInstance();
-        service.queueChange('habits', 'habit-1', 'upsert', { name: 'Meditation' });
+        service.queueChange('habits', 'habit-1', 'insert', { name: 'Meditation' });
         expect(service.getStatus().pendingCount).toBe(1);
     });
 
     it('queueChange replaces an existing pending change for the same record', () => {
         const service = SyncService.getInstance();
-        service.queueChange('habits', 'habit-1', 'upsert', { name: 'Old Name' });
-        service.queueChange('habits', 'habit-1', 'upsert', { name: 'New Name' });
+        service.queueChange('habits', 'habit-1', 'insert', { name: 'Old Name' });
+        service.queueChange('habits', 'habit-1', 'update', { name: 'New Name' });
         // Deduplication: same record → still 1 pending entry
         expect(service.getStatus().pendingCount).toBe(1);
     });
 
     it('different records produce separate pending entries', () => {
         const service = SyncService.getInstance();
-        service.queueChange('habits', 'habit-1', 'upsert', { name: 'Habit A' });
-        service.queueChange('habits', 'habit-2', 'upsert', { name: 'Habit B' });
+        service.queueChange('habits', 'habit-1', 'insert', { name: 'Habit A' });
+        service.queueChange('habits', 'habit-2', 'insert', { name: 'Habit B' });
         expect(service.getStatus().pendingCount).toBe(2);
     });
 
     it('persists pending changes to localStorage', () => {
         const service = SyncService.getInstance();
-        service.queueChange('tasks', 'task-1', 'upsert', { title: 'Task A' });
+        service.queueChange('tasks', 'task-1', 'insert', { title: 'Task A' });
         const stored = localStorage.getItem('sync_pending_changes');
         expect(stored).not.toBeNull();
         expect(stored).toContain('task-1');
@@ -75,7 +75,7 @@ describe('SyncService — queue & status', () => {
             id: 'tasks-task-99-000',
             table: 'tasks',
             recordId: 'task-99',
-            operation: 'upsert',
+            operation: 'insert',
             data: { title: 'Persisted Task' },
             timestamp: new Date().toISOString(),
             retryCount: 0,
@@ -92,23 +92,23 @@ describe('SyncService — conflict resolution policy (local-wins)', () => {
 
     it('queuing a change for a record marks it as locally modified', () => {
         const service = SyncService.getInstance();
-        service.queueChange('habits', 'habit-1', 'upsert', { name: 'Local Version' });
+        service.queueChange('habits', 'habit-1', 'insert', { name: 'Local Version' });
         expect(service.getStatus().pendingCount).toBeGreaterThan(0);
     });
 
     it('only the latest change for a record is retained (no stale data leak)', () => {
         const service = SyncService.getInstance();
-        service.queueChange('tasks', 'task-1', 'upsert', { title: 'First Write' });
-        service.queueChange('tasks', 'task-1', 'upsert', { title: 'Second Write' });
+        service.queueChange('tasks', 'task-1', 'insert', { title: 'First Write' });
+        service.queueChange('tasks', 'task-1', 'update', { title: 'Second Write' });
 
         const stored = JSON.parse(localStorage.getItem('sync_pending_changes') || '[]');
         expect(stored).toHaveLength(1);
         expect(stored[0].data.title).toBe('Second Write');
     });
 
-    it('a delete operation supersedes a prior upsert for the same record', () => {
+    it('a delete operation supersedes a prior insert for the same record', () => {
         const service = SyncService.getInstance();
-        service.queueChange('habits', 'habit-1', 'upsert', { name: 'Alive' });
+        service.queueChange('habits', 'habit-1', 'insert', { name: 'Alive' });
         service.queueChange('habits', 'habit-1', 'delete', {});
 
         const stored = JSON.parse(localStorage.getItem('sync_pending_changes') || '[]');
@@ -118,8 +118,8 @@ describe('SyncService — conflict resolution policy (local-wins)', () => {
 
     it('changes from different tables are tracked independently', () => {
         const service = SyncService.getInstance();
-        service.queueChange('habits', 'record-1', 'upsert', {});
-        service.queueChange('tasks', 'record-1', 'upsert', {});
+        service.queueChange('habits', 'record-1', 'insert', {});
+        service.queueChange('tasks', 'record-1', 'insert', {});
         // Same recordId but different tables → two entries
         expect(service.getStatus().pendingCount).toBe(2);
     });
@@ -132,7 +132,7 @@ describe('SyncService — status subscriptions', () => {
         const service = SyncService.getInstance();
         const listener = jest.fn();
         service.onStatusChange(listener);
-        service.queueChange('tasks', 'task-1', 'upsert', { title: 'Test' });
+        service.queueChange('tasks', 'task-1', 'insert', { title: 'Test' });
         expect(listener).toHaveBeenCalledTimes(1);
         expect(listener).toHaveBeenCalledWith(expect.objectContaining({ pendingCount: 1 }));
     });
@@ -143,7 +143,7 @@ describe('SyncService — status subscriptions', () => {
         const listener2 = jest.fn();
         service.onStatusChange(listener1);
         service.onStatusChange(listener2);
-        service.queueChange('tasks', 'task-1', 'upsert', { title: 'Test' });
+        service.queueChange('tasks', 'task-1', 'insert', { title: 'Test' });
         expect(listener1).toHaveBeenCalledTimes(1);
         expect(listener2).toHaveBeenCalledTimes(1);
     });
@@ -153,7 +153,7 @@ describe('SyncService — status subscriptions', () => {
         const listener = jest.fn();
         const unsubscribe = service.onStatusChange(listener);
         unsubscribe();
-        service.queueChange('tasks', 'task-1', 'upsert', { title: 'Test' });
+        service.queueChange('tasks', 'task-1', 'insert', { title: 'Test' });
         expect(listener).not.toHaveBeenCalled();
     });
 

@@ -1,5 +1,5 @@
-import { google, calendar_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
+import type { calendar_v3 } from '@googleapis/calendar';
 import { logger } from '@/lib/logger';
 
 // Environment variables for Google OAuth
@@ -38,14 +38,14 @@ class GoogleCalendarServiceClass {
         return !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
     }
 
-    // Get OAuth2 client
+    // Get OAuth2 client (uses google-auth-library directly — no googleapis import needed)
     private getOAuth2Client(): OAuth2Client {
         if (!this.isConfigured()) {
             throw new Error('Google Calendar not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
         }
 
         if (!this.oauth2Client) {
-            this.oauth2Client = new google.auth.OAuth2(
+            this.oauth2Client = new OAuth2Client(
                 GOOGLE_CLIENT_ID,
                 GOOGLE_CLIENT_SECRET,
                 GOOGLE_REDIRECT_URI
@@ -53,6 +53,13 @@ class GoogleCalendarServiceClass {
         }
 
         return this.oauth2Client;
+    }
+
+    // Lazy-load the calendar API to avoid adding googleapis to the main bundle
+    private async getCalendarApi(): Promise<calendar_v3.Calendar> {
+        const client = this.getOAuth2Client();
+        const { calendar } = await import('@googleapis/calendar');
+        return calendar({ version: 'v3', auth: client });
     }
 
     // Generate OAuth URL for user authorization.
@@ -88,22 +95,16 @@ class GoogleCalendarServiceClass {
         });
     }
 
-    // Get Calendar API instance
-    private getCalendarApi(): calendar_v3.Calendar {
-        const client = this.getOAuth2Client();
-        return google.calendar({ version: 'v3', auth: client });
-    }
-
     // Fetch events for a specific date
     async getEventsForDate(date: string, tokens: GoogleCalendarTokens): Promise<CalendarEvent[]> {
         this.setTokens(tokens);
-        const calendar = this.getCalendarApi();
+        const calendarApi = await this.getCalendarApi();
 
         const startOfDay = new Date(`${date}T00:00:00`);
         const endOfDay = new Date(`${date}T23:59:59`);
 
         try {
-            const response = await calendar.events.list({
+            const response = await calendarApi.events.list({
                 calendarId: 'primary',
                 timeMin: startOfDay.toISOString(),
                 timeMax: endOfDay.toISOString(),
@@ -161,7 +162,7 @@ class GoogleCalendarServiceClass {
         tokens: GoogleCalendarTokens
     ): Promise<string> {
         this.setTokens(tokens);
-        const calendar = this.getCalendarApi();
+        const calendarApi = await this.getCalendarApi();
 
         const googleEvent: calendar_v3.Schema$Event = {
             summary: event.title,
@@ -175,7 +176,7 @@ class GoogleCalendarServiceClass {
                 : { dateTime: `${event.date}T${event.end}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
         };
 
-        const response = await calendar.events.insert({
+        const response = await calendarApi.events.insert({
             calendarId: 'primary',
             requestBody: googleEvent,
         });
@@ -190,7 +191,7 @@ class GoogleCalendarServiceClass {
         tokens: GoogleCalendarTokens
     ): Promise<void> {
         this.setTokens(tokens);
-        const calendar = this.getCalendarApi();
+        const calendarApi = await this.getCalendarApi();
 
         const updates: calendar_v3.Schema$Event = {};
         if (event.title) updates.summary = event.title;
@@ -206,7 +207,7 @@ class GoogleCalendarServiceClass {
                 : { dateTime: `${event.date}T${event.end}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
         }
 
-        await calendar.events.patch({
+        await calendarApi.events.patch({
             calendarId: 'primary',
             eventId,
             requestBody: updates,
@@ -216,9 +217,9 @@ class GoogleCalendarServiceClass {
     // Delete an event from Google Calendar
     async deleteEvent(eventId: string, tokens: GoogleCalendarTokens): Promise<void> {
         this.setTokens(tokens);
-        const calendar = this.getCalendarApi();
+        const calendarApi = await this.getCalendarApi();
 
-        await calendar.events.delete({
+        await calendarApi.events.delete({
             calendarId: 'primary',
             eventId,
         });
