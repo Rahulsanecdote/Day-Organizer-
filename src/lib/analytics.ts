@@ -1,5 +1,6 @@
 import { DataService } from './sync/DataService';
 import { format, subDays } from 'date-fns';
+import type { DayHistory } from '@/types';
 
 export interface DailyStats {
     date: string;
