@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { DataService } from '@/lib/sync/DataService';
-import { DayStateService } from '@/lib/day-state';
 import { logger } from '@/lib/logger';
 import { DailyInput, FixedEvent, UserPreferences, Task } from '@/types';
 import { TimePickerField } from '@/components/ui/time-wheel-picker';
@@ -48,18 +47,21 @@ export default function MorningPage() {
                         ...prev,
                         sleep: {
                             start: prefs.defaultSleepStart,
-                            end: prefs.defaultSleepEnd
+                            end: prefs.defaultSleepEnd,
                         },
                         constraints: {
                             buffersBetweenBlocksMin: prefs.defaultBuffers,
                             protectDowntimeMin: prefs.defaultDowntimeProtection,
-                        }
+                        },
                     }));
                 }
 
                 // Check for existing input for today
                 const today = format(new Date(), 'yyyy-MM-dd');
-                const existing = await DataService.getDailyInput(today, Intl.DateTimeFormat().resolvedOptions().timeZone);
+                const existing = await DataService.getDailyInput(
+                    today,
+                    Intl.DateTimeFormat().resolvedOptions().timeZone
+                );
                 if (existing) {
                     // Merge with defaults to ensure all required fields exist
                     setDailyInput(prev => ({
@@ -70,8 +72,12 @@ export default function MorningPage() {
                             end: existing.sleep?.end ?? prev.sleep.end,
                         },
                         constraints: {
-                            buffersBetweenBlocksMin: existing.constraints?.buffersBetweenBlocksMin ?? prev.constraints.buffersBetweenBlocksMin,
-                            protectDowntimeMin: existing.constraints?.protectDowntimeMin ?? prev.constraints.protectDowntimeMin,
+                            buffersBetweenBlocksMin:
+                                existing.constraints?.buffersBetweenBlocksMin ??
+                                prev.constraints.buffersBetweenBlocksMin,
+                            protectDowntimeMin:
+                                existing.constraints?.protectDowntimeMin ??
+                                prev.constraints.protectDowntimeMin,
                         },
                         fixedEvents: existing.fixedEvents ?? prev.fixedEvents,
                     }));
@@ -98,8 +104,8 @@ export default function MorningPage() {
                         body: JSON.stringify({
                             tokens: preferences.googleCalendarTokens,
                             start: new Date(today).toISOString(),
-                            end: new Date(today).toISOString()
-                        })
+                            end: new Date(today).toISOString(),
+                        }),
                     });
 
                     if (res.ok) {
@@ -114,11 +120,15 @@ export default function MorningPage() {
 
                         // Merge without duplicates (simple check)
                         setDailyInput(prev => {
-                            const existing = new Set(prev.fixedEvents.map(ev => `${ev.start}-${ev.end}`));
-                            const filtered = newEvents.filter((ev: FixedEvent) => !existing.has(`${ev.start}-${ev.end}`));
+                            const existing = new Set(
+                                prev.fixedEvents.map(ev => `${ev.start}-${ev.end}`)
+                            );
+                            const filtered = newEvents.filter(
+                                (ev: FixedEvent) => !existing.has(`${ev.start}-${ev.end}`)
+                            );
                             return {
                                 ...prev,
-                                fixedEvents: [...prev.fixedEvents, ...filtered]
+                                fixedEvents: [...prev.fixedEvents, ...filtered],
                             };
                         });
                     }
@@ -213,35 +223,56 @@ export default function MorningPage() {
 
     return (
         <div className="max-w-2xl mx-auto py-12 px-4">
-            <h1 className="text-3xl font-serif mb-8" style={{ color: 'var(--color-charcoal)' }}>Morning Briefing</h1>
+            <h1 className="text-3xl font-serif mb-8" style={{ color: 'var(--color-charcoal)' }}>
+                Morning Briefing
+            </h1>
 
             {/* Step Indicator */}
             <div className="flex gap-2 mb-12">
                 {['recovery', 'tasks', 'calendar'].map((s, i) => (
                     <div
                         key={s}
-                        className={`h-1 flex-1 rounded-full transition-colors duration-300 ${['recovery', 'tasks', 'calendar'].indexOf(step) >= i
-                            ? 'bg-indigo-600'
-                            : 'bg-zinc-200'
-                            }`}
+                        className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                            ['recovery', 'tasks', 'calendar'].indexOf(step) >= i
+                                ? 'bg-indigo-600'
+                                : 'bg-zinc-200'
+                        }`}
                     />
                 ))}
             </div>
 
             {/* Step Content */}
-            <div className="p-8 rounded-2xl shadow-sm min-h-[400px] flex flex-col" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <div
+                className="p-8 rounded-2xl shadow-sm min-h-[400px] flex flex-col"
+                style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                }}
+            >
                 {step === 'recovery' && (
                     <div className="space-y-6 flex-1 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <h2 className="text-xl font-medium" style={{ color: 'var(--color-charcoal)' }}>How did you sleep?</h2>
+                        <h2
+                            className="text-xl font-medium"
+                            style={{ color: 'var(--color-charcoal)' }}
+                        >
+                            How did you sleep?
+                        </h2>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: 'var(--color-stone)' }}>Bedtime</label>
+                                <label
+                                    className="block text-sm mb-1"
+                                    style={{ color: 'var(--color-stone)' }}
+                                >
+                                    Bedtime
+                                </label>
                                 <TimePickerField
                                     value={dailyInput.sleep.start}
-                                    onChange={(time) => setDailyInput(prev => ({
-                                        ...prev,
-                                        sleep: { ...prev.sleep, start: time }
-                                    }))}
+                                    onChange={time =>
+                                        setDailyInput(prev => ({
+                                            ...prev,
+                                            sleep: { ...prev.sleep, start: time },
+                                        }))
+                                    }
                                     label="Select Bedtime"
                                     format="12h"
                                     showDuration={true}
@@ -250,13 +281,20 @@ export default function MorningPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: 'var(--color-stone)' }}>Wake Time</label>
+                                <label
+                                    className="block text-sm mb-1"
+                                    style={{ color: 'var(--color-stone)' }}
+                                >
+                                    Wake Time
+                                </label>
                                 <TimePickerField
                                     value={dailyInput.sleep.end}
-                                    onChange={(time) => setDailyInput(prev => ({
-                                        ...prev,
-                                        sleep: { ...prev.sleep, end: time }
-                                    }))}
+                                    onChange={time =>
+                                        setDailyInput(prev => ({
+                                            ...prev,
+                                            sleep: { ...prev.sleep, end: time },
+                                        }))
+                                    }
                                     label="Select Wake Time"
                                     format="12h"
                                     showDuration={true}
@@ -267,17 +305,30 @@ export default function MorningPage() {
                         </div>
 
                         <div>
-                            <label className="block text-sm mb-3" style={{ color: 'var(--color-stone)' }}>Energy Level</label>
+                            <label
+                                className="block text-sm mb-3"
+                                style={{ color: 'var(--color-stone)' }}
+                            >
+                                Energy Level
+                            </label>
                             <div className="flex gap-4">
                                 {(['low', 'medium', 'high'] as const).map(e => (
                                     <button
                                         key={e}
                                         onClick={() => setEnergy(e)}
-                                        className={`flex-1 p-4 rounded-xl border-2 transition-all ${energy === e
-                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                                            : 'hover:border-zinc-200'
-                                            }`}
-                                        style={energy !== e ? { borderColor: 'var(--color-border)', color: 'var(--color-stone)' } : {}}
+                                        className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                                            energy === e
+                                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                                                : 'hover:border-zinc-200'
+                                        }`}
+                                        style={
+                                            energy !== e
+                                                ? {
+                                                      borderColor: 'var(--color-border)',
+                                                      color: 'var(--color-stone)',
+                                                  }
+                                                : {}
+                                        }
                                     >
                                         <div className="capitalize font-medium">{e}</div>
                                     </button>
@@ -294,8 +345,8 @@ export default function MorningPage() {
                             <input
                                 type="text"
                                 value={newTaskTitle}
-                                onChange={(e) => setNewTaskTitle(e.target.value)}
-                                onKeyDown={(e) => {
+                                onChange={e => setNewTaskTitle(e.target.value)}
+                                onKeyDown={e => {
                                     if (e.key === 'Enter') handleAddTask();
                                 }}
                                 placeholder="Add a task..."
@@ -303,7 +354,7 @@ export default function MorningPage() {
                                 style={{
                                     background: 'var(--color-ivory)',
                                     color: 'var(--color-charcoal)',
-                                    border: '1px solid var(--color-border)'
+                                    border: '1px solid var(--color-border)',
                                 }}
                                 autoFocus
                             />
@@ -322,15 +373,27 @@ export default function MorningPage() {
                                     style={{
                                         background: 'var(--color-surface)',
                                         border: '1px solid var(--color-border)',
-                                        color: 'var(--color-charcoal)'
+                                        color: 'var(--color-charcoal)',
                                     }}
                                 >
-                                    <span style={{ color: 'var(--color-charcoal)' }}>{t.title}</span>
-                                    <span className="text-xs" style={{ color: 'var(--color-mist)' }}>Added to Library</span>
+                                    <span style={{ color: 'var(--color-charcoal)' }}>
+                                        {t.title}
+                                    </span>
+                                    <span
+                                        className="text-xs"
+                                        style={{ color: 'var(--color-mist)' }}
+                                    >
+                                        Added to Library
+                                    </span>
                                 </div>
                             ))}
                             {recentTasks.length === 0 && (
-                                <p className="text-center py-8" style={{ color: 'var(--color-mist)' }}>No new tasks added yet.</p>
+                                <p
+                                    className="text-center py-8"
+                                    style={{ color: 'var(--color-mist)' }}
+                                >
+                                    No new tasks added yet.
+                                </p>
                             )}
                         </div>
                     </div>
@@ -343,14 +406,21 @@ export default function MorningPage() {
                             {dailyInput.fixedEvents.length > 0 ? (
                                 <div className="space-y-2">
                                     {dailyInput.fixedEvents.map((ev, i) => (
-                                        <div key={i} className="flex items-center gap-3 p-3 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                                        <div
+                                            key={i}
+                                            className="flex items-center gap-3 p-3 bg-indigo-50/50 rounded-lg border border-indigo-100"
+                                        >
                                             <div className="w-10 text-xs font-medium text-zinc-500 text-right">
                                                 {ev.start}
                                             </div>
                                             <div className="w-1 h-8 bg-indigo-200 rounded-full" />
                                             <div>
-                                                <div className="font-medium text-indigo-900">{ev.title}</div>
-                                                <div className="text-xs text-indigo-400 capitalize">{ev.type}</div>
+                                                <div className="font-medium text-indigo-900">
+                                                    {ev.title}
+                                                </div>
+                                                <div className="text-xs text-indigo-400 capitalize">
+                                                    {ev.type}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -372,9 +442,15 @@ export default function MorningPage() {
                                             if (start && end) {
                                                 setDailyInput(prev => ({
                                                     ...prev,
-                                                    fixedEvents: [...prev.fixedEvents, {
-                                                        title, start, end, type: 'work'
-                                                    }]
+                                                    fixedEvents: [
+                                                        ...prev.fixedEvents,
+                                                        {
+                                                            title,
+                                                            start,
+                                                            end,
+                                                            type: 'work',
+                                                        },
+                                                    ],
                                                 }));
                                             }
                                         }
@@ -383,7 +459,11 @@ export default function MorningPage() {
                                 >
                                     + Add Event Manually
                                 </button>
-                                {googleEventsLoading && <span className="text-xs text-zinc-400 self-center">Syncing calendar...</span>}
+                                {googleEventsLoading && (
+                                    <span className="text-xs text-zinc-400 self-center">
+                                        Syncing calendar...
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -393,8 +473,12 @@ export default function MorningPage() {
                     <div className="flex-1 flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-500">
                         <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
                         <div className="text-center space-y-2">
-                            <p className="text-xl font-medium text-zinc-900">Optimizing your day...</p>
-                            <p className="text-sm text-zinc-500">Integrating tasks, habits, and energy levels.</p>
+                            <p className="text-xl font-medium text-zinc-900">
+                                Optimizing your day...
+                            </p>
+                            <p className="text-sm text-zinc-500">
+                                Integrating tasks, habits, and energy levels.
+                            </p>
                         </div>
                     </div>
                 )}
@@ -423,6 +507,6 @@ export default function MorningPage() {
                     </div>
                 )}
             </div>
-        </div >
+        </div>
     );
 }

@@ -13,7 +13,19 @@ export async function GET(request: NextRequest) {
 
     if (error) {
         logger.warn('Google OAuth error returned by provider', { error });
-        return NextResponse.redirect(new URL('/profile?google_error=' + error, request.url));
+        // Whitelist known OAuth error codes — never reflect raw provider input into the URL
+        const KNOWN_ERRORS = new Set([
+            'access_denied',
+            'invalid_request',
+            'invalid_client',
+            'invalid_grant',
+            'unauthorized_client',
+            'unsupported_response_type',
+            'server_error',
+            'temporarily_unavailable',
+        ]);
+        const safeError = KNOWN_ERRORS.has(error) ? error : 'unknown';
+        return NextResponse.redirect(new URL(`/profile?google_error=${safeError}`, request.url));
     }
 
     if (!code) {
@@ -46,6 +58,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL('/profile?google_connected=true', request.url));
     } catch (err) {
         logger.error('Failed to exchange Google OAuth code for tokens', { err });
-        return NextResponse.redirect(new URL('/profile?google_error=token_exchange_failed', request.url));
+        return NextResponse.redirect(
+            new URL('/profile?google_error=token_exchange_failed', request.url)
+        );
     }
 }

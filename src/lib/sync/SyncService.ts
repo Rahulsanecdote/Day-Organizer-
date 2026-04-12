@@ -33,7 +33,8 @@ export class SyncService {
         try {
             const stored = localStorage.getItem(PENDING_CHANGES_KEY);
             if (stored) {
-                this.pendingChanges = JSON.parse(stored);
+                const parsed = JSON.parse(stored);
+                this.pendingChanges = Array.isArray(parsed) ? parsed : [];
             }
             this.lastSyncAt = localStorage.getItem(LAST_SYNC_KEY);
         } catch (error) {
@@ -180,20 +181,20 @@ export class SyncService {
                 try {
                     if (change.operation === 'delete') {
                         // Soft delete - use type assertion for dynamic table
-                        await (supabase
-                            .from(change.table) as ReturnType<typeof supabase.from>)
+                        await (supabase.from(change.table) as ReturnType<typeof supabase.from>)
                             .update({ deleted_at: new Date().toISOString() })
                             .eq('id', change.recordId);
                     } else {
                         // Upsert - use type assertion for dynamic table
-                        const currentVersion = typeof change.data.version === 'number' ? change.data.version : 0;
-                        const { error } = await (supabase
-                            .from(change.table) as ReturnType<typeof supabase.from>)
-                            .upsert({
-                                ...change.data,
-                                updated_at: new Date().toISOString(),
-                                version: currentVersion + 1,
-                            });
+                        const currentVersion =
+                            typeof change.data.version === 'number' ? change.data.version : 0;
+                        const { error } = await (
+                            supabase.from(change.table) as ReturnType<typeof supabase.from>
+                        ).upsert({
+                            ...change.data,
+                            updated_at: new Date().toISOString(),
+                            version: currentVersion + 1,
+                        });
 
                         if (error) throw error;
                     }
@@ -203,16 +204,14 @@ export class SyncService {
                     logger.error('Sync failed', {
                         table: change.table,
                         recordId: change.recordId,
-                        error: error instanceof Error ? error.message : JSON.stringify(error)
+                        error: error instanceof Error ? error.message : JSON.stringify(error),
                     });
                     change.retryCount++;
                 }
             }
 
             // Remove successful changes
-            this.pendingChanges = this.pendingChanges.filter(
-                c => !successfulIds.includes(c.id)
-            );
+            this.pendingChanges = this.pendingChanges.filter(c => !successfulIds.includes(c.id));
 
             this.lastSyncAt = new Date().toISOString();
             this.savePendingChanges();
@@ -230,16 +229,8 @@ export class SyncService {
 
         try {
             const [habits, tasks] = await Promise.all([
-                supabase
-                    .from('habits')
-                    .select('*')
-                    .eq('user_id', userId)
-                    .gt('updated_at', since),
-                supabase
-                    .from('tasks')
-                    .select('*')
-                    .eq('user_id', userId)
-                    .gt('updated_at', since),
+                supabase.from('habits').select('*').eq('user_id', userId).gt('updated_at', since),
+                supabase.from('tasks').select('*').eq('user_id', userId).gt('updated_at', since),
             ]);
 
             if (habits.data) {
@@ -385,7 +376,11 @@ export class SyncService {
     }
 
     // Transform local record to cloud format (camelCase to snake_case)
-    transformToCloud(table: string, local: Record<string, unknown>, userId: string): Record<string, unknown> {
+    transformToCloud(
+        table: string,
+        local: Record<string, unknown>,
+        userId: string
+    ): Record<string, unknown> {
         const base = {
             id: local.id,
             user_id: userId,
@@ -438,7 +433,7 @@ export class SyncService {
     // Subscribe to realtime changes
     subscribeToChanges(userId: string): () => void {
         if (!supabase || !isCloudSyncEnabled()) {
-            return () => { };
+            return () => {};
         }
 
         const channel = supabase
@@ -450,7 +445,7 @@ export class SyncService {
                     schema: 'public',
                     filter: `user_id=eq.${userId}`,
                 },
-                (payload) => this.handleRemoteChange(payload)
+                payload => this.handleRemoteChange(payload)
             )
             .subscribe();
 
@@ -470,11 +465,11 @@ export class SyncService {
 
         // Validate table is one we care about
         const validTables = ['habits', 'tasks', 'daily_inputs', 'plans'] as const;
-        if (!table || !validTables.includes(table as typeof validTables[number])) {
+        if (!table || !validTables.includes(table as (typeof validTables)[number])) {
             return;
         }
 
-        const typedTable = table as typeof validTables[number];
+        const typedTable = table as (typeof validTables)[number];
         const recordId = (newRecord?.id || oldRecord?.id) as string | undefined;
 
         if (!recordId) return;

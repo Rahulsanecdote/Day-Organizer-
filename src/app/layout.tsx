@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import { Inter, Cormorant_Garamond } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
+
+export const metadata: Metadata = {
+    title: 'Day Organizer',
+    description:
+        'Intelligent daily planning powered by AI — schedule habits, tasks, and focus blocks that fit your life.',
+};
 
 // Configure fonts using next/font for optimal loading
 const inter = Inter({
@@ -35,11 +42,7 @@ const themeInitScript = `
 })();
 `;
 
-export default function RootLayout({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html
             lang="en"
@@ -54,9 +57,7 @@ export default function RootLayout({
                     dangerouslySetInnerHTML={{ __html: themeInitScript }}
                 />
             </head>
-            <body style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
-                {children}
-            </body>
+            <body style={{ fontFamily: 'var(--font-inter), sans-serif' }}>{children}</body>
         </html>
     );
 }

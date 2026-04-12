@@ -1,44 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleCalendarService, GoogleCalendarTokens } from '@/lib/google-calendar';
+import { getIronSession } from 'iron-session';
+import { cookies } from 'next/headers';
+import { GoogleCalendarService } from '@/lib/google-calendar';
+import { sessionOptions, type SessionData } from '@/lib/session';
 import { logger } from '@/lib/logger';
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function POST(request: NextRequest) {
+    const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
+
+    if (!session.googleTokens?.access_token) {
+        return NextResponse.json({ error: 'Not authenticated with Google' }, { status: 401 });
+    }
+
+    let body: unknown;
     try {
-        const body = await request.json();
-        const { tokens, start, end } = body;
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-        if (!tokens || !tokens.access_token) {
-            return NextResponse.json(
-                { error: 'Missing tokens' },
-                { status: 401 }
-            );
-        }
+    if (typeof body !== 'object' || body === null) {
+        return NextResponse.json({ error: 'Request body must be an object' }, { status: 400 });
+    }
 
-        // Validate date range
-        if (!start || !end) {
-            // Default to today if not provided
-            const today = new Date().toISOString().split('T')[0];
-            const events = await GoogleCalendarService.getEventsForDate(today, tokens as GoogleCalendarTokens);
-            return NextResponse.json({ events });
-        }
+    const { date } = body as Record<string, unknown>;
+    const targetDate =
+        typeof date === 'string' && DATE_RE.test(date)
+            ? date
+            : new Date().toISOString().split('T')[0];
 
-        // Fetch events for range (for now just single day is supported by the service method, 
-        // need to update service or just call it for the specific day)
-        // The service method `getEventsForDate` takes a single date string YYYY-MM-DD.
-        // If we want range, we might need to iterate or update service.
-        // Let's assume the client passes a specific 'date' for now primarily.
-
-        const date = start.split('T')[0];
-        const events = await GoogleCalendarService.getEventsForDate(date, tokens as GoogleCalendarTokens);
-
+    try {
+        const events = await GoogleCalendarService.getEventsForDate(
+            targetDate,
+            session.googleTokens
+        );
         return NextResponse.json({ events });
-
     } catch (error) {
         logger.error('Failed to fetch Google Calendar events', {
             error: error instanceof Error ? error.message : String(error),
         });
 
-        // Check if token expired
         if (error instanceof Error && error.message.includes('invalid_grant')) {
             return NextResponse.json(
                 { error: 'Token expired', code: 'TOKEN_EXPIRED' },
@@ -46,9 +49,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        return NextResponse.json(
-            { error: 'Failed to fetch events' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 });
     }
 }
