@@ -105,6 +105,29 @@ npm run dev
 3. **Open your browser**
 Navigate to `http://localhost:3000`
 
+### Environment Setup
+
+1. Copy the example file:
+```bash
+cp .env.example .env.local
+```
+2. Fill in all values. Variables prefixed `NEXT_PUBLIC_` are exposed to the browser — never put secrets in them.
+3. `.env.local` is already in `.gitignore` — never commit it.
+
+#### Required variables by feature
+
+| Variable | Required For |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Cloud sync |
+| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` | Calendar integration |
+| `GEMINI_API_KEY` | AI scheduling assistant |
+| `SESSION_SECRET` | OAuth token security (min 32 chars) |
+
+Generate a `SESSION_SECRET`:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
 ### Building for Production
 
 ```bash
