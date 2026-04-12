@@ -11,6 +11,7 @@ import {
   UserPreferences,
   TimeSlot
 } from '@/types';
+import type { RegularPlanStats, LateNightPlanStats } from '@/types/scheduling';
 import { addMinutes, differenceInMinutes, parse, format, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 
 export class SchedulingEngine {
@@ -350,11 +351,11 @@ export class SchedulingEngine {
       unscheduled: [], // No tasks scheduled
       explanation: "It's late in the day. Focusing on winding down and preparing for tomorrow is the best use of your energy right now.",
       stats: {
+        planType: 'late-night',
         totalFocusTimeMinutes: 0,
         totalFreeTimeMinutes: 0,
         completionRate: 0,
-        energyDistribution: { high: 0, medium: 0, low: 100 }
-      },
+      } satisfies LateNightPlanStats,
       nextDaySuggestions: ["Review your task list for tomorrow", "Prepare your workspace"],
       generatedAt: new Date().toISOString(),
       timezone: dailyInput.timezone,
@@ -1134,7 +1135,7 @@ export class SchedulingEngine {
     }));
   }
 
-  private calculateStats(blocks: ScheduledBlock[], dailyInput: DailyInput): PlanOutput['stats'] {
+  private calculateStats(blocks: ScheduledBlock[], dailyInput: DailyInput): RegularPlanStats {
     const workBlocks = blocks.filter(b => b.type === 'work');
     const gymBlocks = blocks.filter(b => b.type === 'gym');
     const habitBlocks = blocks.filter(b => b.type === 'habit');
@@ -1168,13 +1169,14 @@ export class SchedulingEngine {
     const freeTimeRemaining = totalDayMinutes - scheduledMinutes;
 
     return {
+      planType: 'regular',
       workHours: Math.round(workHours * 10) / 10,
       gymMinutes,
       habitsCompleted: habitBlocks.length,
       tasksCompleted: taskBlocks.length,
       focusBlocks,
       freeTimeRemaining,
-    };
+    } satisfies RegularPlanStats;
   }
 
   private getUnscheduledItems(

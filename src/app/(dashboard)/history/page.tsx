@@ -5,6 +5,7 @@ import { format, subDays, startOfWeek } from 'date-fns';
 import { DataService } from '@/lib/sync/DataService';
 import { DatabaseService } from '@/lib/database';
 import { DayHistory, PlanOutput } from '@/types';
+import { isRegularPlan } from '@/types/scheduling';
 
 export default function HistoryPage() {
   const [history, setHistory] = useState<DayHistory[]>([]);
@@ -67,7 +68,7 @@ export default function HistoryPage() {
     // Calculate gym minutes from plans
     let totalGymMinutes = 0;
     plansData.forEach(plan => {
-      totalGymMinutes += plan.stats.gymMinutes;
+      totalGymMinutes += isRegularPlan(plan.stats) ? plan.stats.gymMinutes : 0;
     });
 
     setWeeklyStats({
