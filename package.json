@@ -1,52 +1,68 @@
 {
-  "name": "daily-organization-app",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "test": "jest",
-    "test:watch": "jest --watch"
-  },
-  "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "@googleapis/calendar": "^14.2.0",
-    "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.90.1",
-    "clsx": "^2.1.1",
-    "date-fns": "^3.6.0",
-    "dexie": "^4.0.4",
-    "framer-motion": "^12.29.2",
-    "iron-session": "^8.0.4",
-    "lucide-react": "^0.563.0",
-    "next": "16.1.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "recharts": "^3.7.0",
-    "tailwind-merge": "^3.4.0",
-    "task-master-ai": "^0.42.0",
-    "uuid": "^9.0.1"
-  },
-  "devDependencies": {
-    "@next/bundle-analyzer": "^16.2.3",
-    "@next/swc-wasm-nodejs": "16.1.0",
-    "@next/swc-wasm-web": "16.1.0",
-    "@tailwindcss/postcss": "^4",
-    "@testing-library/jest-dom": "^6.4.2",
-    "@types/jest": "^29.5.12",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@types/uuid": "^9.0.7",
-    "dotenv": "^17.2.3",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.0",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^30.3.0",
-    "tailwindcss": "^4",
-    "ts-jest": "^29.1.1",
-    "typescript": "^5"
-  }
+    "name": "daily-organization-app",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "eslint",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "prepare": "husky"
+    },
+    "dependencies": {
+        "@google/generative-ai": "^0.24.1",
+        "@googleapis/calendar": "^14.2.0",
+        "@supabase/ssr": "^0.8.0",
+        "@supabase/supabase-js": "^2.90.1",
+        "clsx": "^2.1.1",
+        "date-fns": "^3.6.0",
+        "dexie": "^4.0.4",
+        "framer-motion": "^12.29.2",
+        "iron-session": "^8.0.4",
+        "lucide-react": "^0.563.0",
+        "next": "16.1.0",
+        "react": "19.2.3",
+        "react-dom": "19.2.3",
+        "recharts": "^3.7.0",
+        "tailwind-merge": "^3.4.0",
+        "task-master-ai": "^0.42.0",
+        "uuid": "^9.0.1"
+    },
+    "lint-staged": {
+        "*.{ts,tsx}": [
+            "eslint --fix --max-warnings=0",
+            "bash -c 'tsc --noEmit --skipLibCheck'"
+        ],
+        "*.{ts,tsx,json,md}": [
+            "prettier --write"
+        ],
+        "src/app/api/**/*.ts": [
+            "jest --passWithNoTests --testPathPattern=src/app/api"
+        ]
+    },
+    "devDependencies": {
+        "@next/bundle-analyzer": "^16.2.3",
+        "@next/swc-wasm-nodejs": "16.1.0",
+        "@next/swc-wasm-web": "16.1.0",
+        "@tailwindcss/postcss": "^4",
+        "@testing-library/jest-dom": "^6.4.2",
+        "@types/jest": "^29.5.12",
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "@types/uuid": "^9.0.7",
+        "dotenv": "^17.2.3",
+        "eslint": "^9",
+        "eslint-config-next": "16.1.0",
+        "husky": "^9.1.7",
+        "jest": "^29.7.0",
+        "jest-environment-jsdom": "^30.3.0",
+        "lint-staged": "^16.4.0",
+        "prettier": "^3.8.2",
+        "tailwindcss": "^4",
+        "ts-jest": "^29.1.1",
+        "typescript": "^5"
+    }
 }
