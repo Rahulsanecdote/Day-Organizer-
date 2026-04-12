@@ -1,12 +1,20 @@
 /**
  * Centralized Logging Abstraction
- * 
- * Provides environment-aware logging that:
- * - Silences debug/info in production
- * - Always logs errors (can be extended to send to error tracking)
- * - Supports structured context for better debugging
- * 
- * Future: Add integration with Sentry, LogRocket, or similar services
+ *
+ * - Development: readable prefixed output via console methods
+ * - Production:  structured JSON written per-line for log aggregation
+ *                (Datadog, Axiom, Logtail, etc.)
+ *
+ * Usage:
+ * ```
+ * import { logger } from '@/lib/logger';
+ *
+ * logger.debug('Processing item', { itemId: '123' });
+ * logger.info('User logged in', { userId: 'abc' });
+ * logger.warn('Deprecated API used');
+ * logger.error('Failed to sync', { table: 'habits', error: err.message });
+ * logger.logError(err, { table: 'habits' });
+ * ```
  */
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -15,131 +23,64 @@ interface LogContext {
     [key: string]: unknown;
 }
 
-interface ErrorTrackingConfig {
-    enabled: boolean;
-    // Future: add service-specific options (dsn, sampleRate, etc.)
+interface LogEntry {
+    level: LogLevel;
+    message: string;
+    timestamp: string;
+    context?: LogContext;
 }
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
-// Placeholder for future error tracking integration
-const errorTrackingConfig: ErrorTrackingConfig = {
-    enabled: false,
-};
-
-/**
- * Format log message with optional context
- */
-function formatMessage(message: string, context?: LogContext): string {
-    if (!context || Object.keys(context).length === 0) {
-        return message;
-    }
-    return `${message} ${JSON.stringify(context)}`;
-}
-
-/**
- * Internal log function with level checking
- */
 function log(level: LogLevel, message: string, context?: LogContext): void {
-    const formattedMessage = formatMessage(message, context);
+    // Silence debug/info in production
+    if (!isDevelopment && (level === 'debug' || level === 'info')) return;
 
+    const entry: LogEntry = {
+        level,
+        message,
+        timestamp: new Date().toISOString(),
+        ...(context && Object.keys(context).length > 0 && { context }),
+    };
+
+    if (!isDevelopment) {
+        // Structured JSON — one line per entry, suitable for log aggregation
+        console.log(JSON.stringify(entry));
+        return;
+    }
+
+    // Development: human-readable
+    const prefix = `[${entry.timestamp}] [${level.toUpperCase()}]`;
+    const suffix = entry.context ? entry.context : '';
     switch (level) {
-        case 'debug':
-            if (isDevelopment) {
-                console.log(`[DEBUG] ${formattedMessage}`);
-            }
-            break;
-
-        case 'info':
-            if (isDevelopment) {
-                console.log(`[INFO] ${formattedMessage}`);
-            }
-            break;
-
-        case 'warn':
-            if (isDevelopment) {
-                console.warn(`[WARN] ${formattedMessage}`);
-            }
-            // In production, warnings could be sampled and sent to monitoring
-            break;
-
-        case 'error':
-            // Always log errors, even in production
-            console.error(`[ERROR] ${formattedMessage}`);
-
-            // Future: send to error tracking service
-            if (errorTrackingConfig.enabled) {
-                // sendToErrorTracking(message, context);
-            }
-            break;
+        case 'error': console.error(prefix, message, suffix); break;
+        case 'warn':  console.warn(prefix, message, suffix);  break;
+        default:      console.log(prefix, message, suffix);   break;
     }
 }
 
-/**
- * Logger API
- * 
- * Usage:
- * ```
- * import { logger } from '@/lib/logger';
- * 
- * logger.debug('Processing item', { itemId: '123' });
- * logger.info('User logged in', { userId: 'abc' });
- * logger.warn('Deprecated API used');
- * logger.error('Failed to sync', { table: 'habits', error: err.message });
- * ```
- */
 export const logger = {
-    /**
-     * Debug-level logs (development only)
-     * Use for detailed debugging information
-     */
-    debug: (message: string, context?: LogContext): void => {
-        log('debug', message, context);
-    },
+    debug: (message: string, context?: LogContext): void => log('debug', message, context),
+    info:  (message: string, context?: LogContext): void => log('info',  message, context),
+    warn:  (message: string, context?: LogContext): void => log('warn',  message, context),
+    error: (message: string, context?: LogContext): void => log('error', message, context),
 
     /**
-     * Info-level logs (development only)
-     * Use for general operational information
-     */
-    info: (message: string, context?: LogContext): void => {
-        log('info', message, context);
-    },
-
-    /**
-     * Warning-level logs (development only, but could be sampled in production)
-     * Use for potentially problematic situations
-     */
-    warn: (message: string, context?: LogContext): void => {
-        log('warn', message, context);
-    },
-
-    /**
-     * Error-level logs (always logged)
-     * Use for errors that need attention
-     */
-    error: (message: string, context?: LogContext): void => {
-        log('error', message, context);
-    },
-
-    /**
-     * Log an error object with optional context
-     * Extracts message and stack from Error instances
+     * Log an Error object with automatic message + stack extraction.
+     * Use instead of logger.error when you have a caught error instance.
      */
     logError: (error: unknown, context?: LogContext): void => {
-        const errorContext: LogContext = { ...context };
-
+        const ctx: LogContext = { ...context };
         if (error instanceof Error) {
-            errorContext.errorMessage = error.message;
-            if (isDevelopment) {
-                errorContext.stack = error.stack;
-            }
-            log('error', error.message, errorContext);
+            ctx.error = error.message;
+            if (isDevelopment) ctx.stack = error.stack;
+            log('error', error.message, ctx);
         } else if (typeof error === 'string') {
-            log('error', error, errorContext);
+            log('error', error, ctx);
         } else {
-            log('error', 'Unknown error occurred', { ...errorContext, error });
+            log('error', 'Unknown error', { ...ctx, raw: error });
         }
     },
-};
+} as const;
 
 export default logger;

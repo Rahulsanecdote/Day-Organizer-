@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 import HabitChart from '@/components/analytics/HabitChart';
 import ProductivityTrend from '@/components/analytics/ProductivityTrend';
 import StatCard from '@/components/analytics/StatCard';
@@ -22,7 +23,9 @@ export default function AnalyticsDashboard() {
                 setDailyStats(daily);
                 setHabitStats(habits);
             } catch (error) {
-                console.error('Failed to load analytics:', error);
+                logger.error('Failed to load analytics', {
+                    error: error instanceof Error ? error.message : String(error),
+                });
             } finally {
                 setLoading(false);
             }

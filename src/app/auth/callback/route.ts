@@ -15,6 +15,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url);
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     // Handle OAuth errors (user denied access, etc.)
     if (error) {
-        console.error('OAuth error:', error, errorDescription);
+        logger.warn('Supabase OAuth error returned by provider', { error, errorDescription });
         return NextResponse.redirect(
             `${origin}/login?error=${encodeURIComponent(errorDescription || error)}`
         );
@@ -47,7 +48,9 @@ export async function GET(request: NextRequest) {
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
-        console.error('Session exchange error:', exchangeError);
+        logger.error('Failed to exchange Supabase OAuth code for session', {
+            error: exchangeError.message,
+        });
         return NextResponse.redirect(
             `${origin}/login?error=${encodeURIComponent(exchangeError.message)}`
         );

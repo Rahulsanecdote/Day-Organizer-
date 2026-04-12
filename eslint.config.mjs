@@ -5,6 +5,20 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // Zero tolerance for console.* in server code — use logger instead.
+  {
+    files: ["src/app/api/**/*.ts", "src/lib/**/*.ts"],
+    rules: {
+      "no-console": "error",
+    },
+  },
+  // Warn (not error) in UI code so development logging stays practical.
+  {
+    files: ["src/app/**/*.tsx", "src/components/**/*.tsx"],
+    rules: {
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

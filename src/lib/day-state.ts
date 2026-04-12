@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { DataService } from './sync/DataService';
+import { logger } from '@/lib/logger';
 
 export type DayState = 'uninitialized' | 'active' | 'review';
 
@@ -26,7 +27,9 @@ export class DayStateService {
 
             return 'active';
         } catch (error) {
-            console.error('Failed to determine day state', error);
+            logger.error('Failed to determine day state', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             return 'uninitialized';
         }
     }

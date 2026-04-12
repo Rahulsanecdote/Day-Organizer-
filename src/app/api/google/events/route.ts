@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleCalendarService, GoogleCalendarTokens } from '@/lib/google-calendar';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     try {
@@ -33,7 +34,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ events });
 
     } catch (error) {
-        console.error('Failed to fetch calendar events:', error);
+        logger.error('Failed to fetch Google Calendar events', {
+            error: error instanceof Error ? error.message : String(error),
+        });
 
         // Check if token expired
         if (error instanceof Error && error.message.includes('invalid_grant')) {

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { PlanOutput, Habit, Task } from '@/types';
+import { logger } from '@/lib/logger';
 
 // Initialize Gemini client
 const genAI = process.env.GOOGLE_API_KEY
@@ -96,7 +97,9 @@ export async function generateMorningBriefing(data: BriefingData): Promise<AIBri
         const parsed = JSON.parse(jsonMatch[0]) as AIBriefingResult;
         return parsed;
     } catch (error) {
-        console.error('AI briefing generation failed:', error);
+        logger.error('AI briefing generation failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
         return null;
     }
 }

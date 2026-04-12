@@ -492,7 +492,9 @@ export default function PlanPage() {
             }));
           }
         } catch (error) {
-          console.error('Failed to fetch Google Calendar events', error);
+          logger.error('Failed to fetch Google Calendar events', {
+              error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 

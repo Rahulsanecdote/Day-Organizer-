@@ -1,6 +1,7 @@
 'use client';
 
 import { ScheduledBlock } from '@/types';
+import { logger } from '@/lib/logger';
 
 export type NotificationPermission = 'granted' | 'denied' | 'default';
 
@@ -58,7 +59,7 @@ class NotificationServiceClass {
     // Show a notification immediately
     show(title: string, options?: NotificationOptions): Notification | null {
         if (!this.isSupported() || this.getPermission() !== 'granted') {
-            console.log('Notifications not available');
+            logger.debug('Notifications not available or not granted');
             return null;
         }
 
@@ -74,7 +75,9 @@ class NotificationServiceClass {
 
             return notification;
         } catch (error) {
-            console.error('Failed to show notification:', error);
+            logger.error('Failed to show notification', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             return null;
         }
     }

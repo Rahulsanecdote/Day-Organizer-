@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { DatabaseService } from '@/lib/database';
 import { generateMorningBriefing, AIBriefingResult } from '@/lib/assistant/briefing-ai';
 import type { PlanOutput } from '@/types';
@@ -45,7 +46,9 @@ export default function MorningBriefing() {
                     setAiBriefing(briefing);
                 }
             } catch (error) {
-                console.error('Failed to generate AI briefing:', error);
+                logger.error('Failed to generate AI briefing', {
+                    error: error instanceof Error ? error.message : String(error),
+                });
             } finally {
                 setIsLoading(false);
             }

@@ -1,5 +1,6 @@
 import { google, calendar_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
+import { logger } from '@/lib/logger';
 
 // Environment variables for Google OAuth
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -113,7 +114,9 @@ class GoogleCalendarServiceClass {
             const events = response.data.items || [];
             return events.map(event => this.parseGoogleEvent(event, date)).filter((e): e is CalendarEvent => e !== null);
         } catch (error) {
-            console.error('Failed to fetch Google Calendar events:', error);
+            logger.error('Failed to fetch Google Calendar events', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
         }
     }
