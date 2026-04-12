@@ -289,7 +289,7 @@ export default function MorningPage() {
 
                 {step === 'tasks' && (
                     <div className="space-y-6 flex-1 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <h2 className="text-xl font-medium">What's on your mind for today?</h2>
+                        <h2 className="text-xl font-medium">What&apos;s on your mind for today?</h2>
                         <div className="flex gap-2">
                             <input
                                 type="text"

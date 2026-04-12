@@ -1,17 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NotificationService, NotificationPermission } from '@/lib/notifications';
 
 export default function NotificationButton() {
-    const [permission, setPermission] = useState<NotificationPermission>('default');
+    const [permission, setPermission] = useState<NotificationPermission>(
+        () => NotificationService.getPermission()
+    );
     const [isLoading, setIsLoading] = useState(false);
-    const [isSupported, setIsSupported] = useState(true);
-
-    useEffect(() => {
-        setIsSupported(NotificationService.isSupported());
-        setPermission(NotificationService.getPermission());
-    }, []);
+    const [isSupported] = useState(() => NotificationService.isSupported());
 
     const handleRequestPermission = async () => {
         setIsLoading(true);
