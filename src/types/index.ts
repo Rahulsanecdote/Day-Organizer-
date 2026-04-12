@@ -1,4 +1,5 @@
 // Core data types for the Daily Organization App
+import type { PlanStats } from './scheduling';
 
 export interface TimeRange {
   start: string; // "HH:MM" format
@@ -124,14 +125,7 @@ export interface PlanOutput {
   blocks: ScheduledBlock[];
   unscheduled: UnscheduledItem[];
   explanation: string;
-  stats: {
-    workHours: number;
-    gymMinutes: number;
-    habitsCompleted: number;
-    tasksCompleted: number;
-    focusBlocks: number;
-    freeTimeRemaining: number;
-  };
+  stats: PlanStats;
   nextDaySuggestions?: string[];
   // Generation Metadata
   generatedAt?: string;      // ISO timestamp

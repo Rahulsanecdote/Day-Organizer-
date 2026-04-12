@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import { NotificationService } from '@/lib/notifications';
 import NotificationButton from '@/components/NotificationButton';
 import { PlanOutput, ScheduledBlock, UserPreferences, BlockType } from '@/types';
+import { isRegularPlan, isLateNightPlan } from '@/types/scheduling';
 
 // Edit Modal Component
 function EditBlockModal({
@@ -984,6 +985,7 @@ export default function PlanPage() {
           >
             Daily Overview
           </h2>
+          {isRegularPlan(plan.stats) ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
             {[
               { value: `${plan.stats.workHours}h`, label: 'Work', color: 'var(--color-work)' },
@@ -1012,6 +1014,33 @@ export default function PlanPage() {
               </div>
             ))}
           </div>
+          ) : isLateNightPlan(plan.stats) ? (
+          <div className="grid grid-cols-3 gap-6">
+            {[
+              { value: `${plan.stats.totalFocusTimeMinutes}m`, label: 'Focus Time', color: 'var(--color-sleep)' },
+              { value: `${plan.stats.totalFreeTimeMinutes}m`, label: 'Free Time', color: 'var(--color-mist)' },
+              { value: `${Math.round(plan.stats.completionRate * 100)}%`, label: 'Completion', color: 'var(--color-gold)' },
+            ].map((stat, index) => (
+              <div key={index} className="text-center">
+                <div
+                  className="text-3xl font-light mb-1"
+                  style={{
+                    fontFamily: 'var(--font-serif)',
+                    color: stat.color
+                  }}
+                >
+                  {stat.value}
+                </div>
+                <div
+                  className="text-xs uppercase tracking-wider"
+                  style={{ color: 'var(--color-mist)' }}
+                >
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+          ) : null}
         </div>
       )}
 
