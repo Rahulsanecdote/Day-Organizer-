@@ -38,28 +38,26 @@ export default function ProfilePage() {
 
     const handleGoogleCallback = async () => {
         const connected = searchParams.get('google_connected');
-        const tokensStr = searchParams.get('tokens');
         const error = searchParams.get('google_error');
 
-        if (connected === 'true' && tokensStr) {
+        if (connected === 'true') {
             try {
-                const tokens = JSON.parse(decodeURIComponent(tokensStr));
-                const prefs = await DataService.getPreferences();
+                // Tokens are stored server-side after OAuth — retrieve them from the session
+                const res = await fetch('/api/google/tokens');
+                if (!res.ok) throw new Error('Token retrieval failed');
+                const tokens = await res.json();
 
+                const prefs = await DataService.getPreferences();
                 if (prefs) {
-                    const updatedPrefs = {
-                        ...prefs,
-                        googleCalendarTokens: tokens
-                    };
+                    const updatedPrefs = { ...prefs, googleCalendarTokens: tokens };
                     await DataService.savePreferences(updatedPrefs);
                     setPreferences(updatedPrefs);
-
-                    // Clear URL params
-                    router.replace('/profile');
-                    alert('Google Calendar connected successfully!');
                 }
+
+                router.replace('/profile');
+                alert('Google Calendar connected successfully!');
             } catch (e) {
-                console.error('Failed to parse tokens', e);
+                console.error('Failed to retrieve Google tokens', e);
                 alert('Failed to connect Google Calendar');
             }
         } else if (error) {
