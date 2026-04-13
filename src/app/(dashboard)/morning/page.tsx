@@ -7,12 +7,14 @@ import { DataService } from '@/lib/sync/DataService';
 import { logger } from '@/lib/logger';
 import { DailyInput, FixedEvent, UserPreferences, Task } from '@/types';
 import { TimePickerField } from '@/components/ui/time-wheel-picker';
+import { useToast } from '@/components/ui/toast';
 
 // Type definitions for wizard
 type WizardStep = 'recovery' | 'tasks' | 'calendar' | 'generating';
 
 export default function MorningPage() {
     const router = useRouter();
+    const { showToast } = useToast();
     const [step, setStep] = useState<WizardStep>('recovery');
     const [isLoading, setIsLoading] = useState(true);
 
@@ -93,19 +95,14 @@ export default function MorningPage() {
 
     // Fetch Calendar Events when entering Step 3
     useEffect(() => {
-        if (step === 'calendar' && preferences?.googleCalendarTokens) {
+        if (step === 'calendar') {
             const fetchGoogleEvents = async () => {
                 setGoogleEventsLoading(true);
                 try {
-                    const today = dailyInput.date;
                     const res = await fetch('/api/google/events', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            tokens: preferences.googleCalendarTokens,
-                            start: new Date(today).toISOString(),
-                            end: new Date(today).toISOString(),
-                        }),
+                        body: JSON.stringify({ date: dailyInput.date }),
                     });
 
                     if (res.ok) {
@@ -140,7 +137,7 @@ export default function MorningPage() {
             };
             fetchGoogleEvents();
         }
-    }, [step, preferences, dailyInput.date]);
+    }, [step, dailyInput.date]);
 
     // Actions
     const handleAddTask = async () => {
@@ -208,7 +205,7 @@ export default function MorningPage() {
             }
         } catch (error) {
             logger.error('Failed to generate plan', { error: String(error) });
-            alert('Failed to generate your plan. Please try again.');
+            showToast('Failed to generate your plan. Please try again.', 'error');
             setStep('calendar'); // Go back
         }
     };

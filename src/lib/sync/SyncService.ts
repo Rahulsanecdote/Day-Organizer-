@@ -30,6 +30,9 @@ export class SyncService {
 
     // Load pending changes from localStorage
     private loadPendingChanges(): void {
+        if (typeof window === 'undefined') {
+            return;
+        }
         try {
             const stored = localStorage.getItem(PENDING_CHANGES_KEY);
             if (stored) {
@@ -44,6 +47,9 @@ export class SyncService {
 
     // Save pending changes to localStorage
     private savePendingChanges(): void {
+        if (typeof window === 'undefined') {
+            return;
+        }
         try {
             localStorage.setItem(PENDING_CHANGES_KEY, JSON.stringify(this.pendingChanges));
             if (this.lastSyncAt) {
@@ -102,7 +108,7 @@ export class SyncService {
         this.notifyListeners();
 
         // Attempt sync if online
-        if (navigator.onLine && isCloudSyncEnabled()) {
+        if (typeof navigator !== 'undefined' && navigator.onLine && isCloudSyncEnabled()) {
             this.pushChanges();
         }
     }
@@ -436,18 +442,26 @@ export class SyncService {
             return () => {};
         }
 
-        const channel = supabase
-            .channel('user-sync')
-            .on(
+        const tables: Array<'habits' | 'tasks' | 'daily_inputs' | 'plans'> = [
+            'habits',
+            'tasks',
+            'daily_inputs',
+            'plans',
+        ];
+        const channel = supabase.channel('user-sync');
+        tables.forEach(table => {
+            channel.on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
+                    table,
                     filter: `user_id=eq.${userId}`,
                 },
                 payload => this.handleRemoteChange(payload)
-            )
-            .subscribe();
+            );
+        });
+        channel.subscribe();
 
         return () => {
             channel.unsubscribe();

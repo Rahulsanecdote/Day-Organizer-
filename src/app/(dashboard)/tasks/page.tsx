@@ -5,8 +5,10 @@ import { format } from 'date-fns';
 import { DataService } from '@/lib/sync/DataService';
 import { Task } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { useToast } from '@/components/ui/toast';
 
 export default function TasksPage() {
+    const { showToast } = useToast();
     const [tasks, setTasks] = useState<Task[]>([]);
     const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
     const [showForm, setShowForm] = useState(false);
@@ -79,7 +81,7 @@ export default function TasksPage() {
 
     const handleSaveTask = async () => {
         if (!editingTask || !editingTask.title?.trim()) {
-            alert('Task title is required');
+            showToast('Task title is required', 'error');
             return;
         }
 

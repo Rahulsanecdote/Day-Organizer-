@@ -14,6 +14,7 @@ import CommandBar from '@/components/assistant/CommandBar';
 import MorningBriefing from '@/components/assistant/MorningBriefing';
 import EveningDebrief from '@/components/assistant/EveningDebrief';
 import PomodoroTimer from '@/components/PomodoroTimer';
+import { ToastProvider } from '@/components/ui/toast';
 
 // ── Module-level constants ──────────────────────────────────────────────────
 
@@ -383,151 +384,156 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return (
         <AuthProvider>
             <ThemeProvider>
-                <div
-                    className="min-h-screen"
-                    style={{ background: 'var(--ambient-gradient)', backgroundAttachment: 'fixed' }}
-                >
-                    <div className="flex h-screen">
-                        {/* ── Mobile backdrop overlay ── */}
-                        {sidebarOpen && (
-                            <div
-                                className="fixed inset-0 z-30 md:hidden"
-                                style={{ background: 'rgba(0,0,0,0.45)' }}
-                                onClick={closeSidebar}
-                                aria-hidden="true"
-                            />
-                        )}
-
-                        {/* ── Sidebar ── */}
-                        {/* Desktop: always visible, static */}
-                        {/* Mobile: slides in from left as a fixed overlay */}
-                        <div
-                            className={[
-                                'glass-sidebar flex flex-col',
-                                // Desktop: normal flow
-                                'md:relative md:translate-x-0 md:w-72',
-                                // Mobile: fixed overlay, slide in/out
-                                'fixed inset-y-0 left-0 z-40 w-72',
-                                'transition-transform duration-300 ease-in-out',
-                                sidebarOpen
-                                    ? 'translate-x-0'
-                                    : '-translate-x-full md:translate-x-0',
-                            ].join(' ')}
-                        >
-                            <SidebarContent pathname={pathname} onClose={closeSidebar} />
-                        </div>
-
-                        {/* ── Main content ── */}
-                        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-                            {/* Glass Header */}
-                            <header
-                                className="px-4 md:px-10 py-4 md:py-6 flex items-center justify-between gap-3"
-                                style={{
-                                    background: 'var(--glass-bg)',
-                                    backdropFilter: 'blur(var(--glass-blur))',
-                                    WebkitBackdropFilter: 'blur(var(--glass-blur))',
-                                    borderBottom: '1px solid var(--glass-border-subtle)',
-                                }}
-                            >
-                                {/* Hamburger — mobile only */}
-                                <button
-                                    onClick={() => setSidebarOpen(true)}
-                                    className="md:hidden p-2 rounded-lg flex-shrink-0"
-                                    style={{ color: 'var(--color-stone)' }}
-                                    aria-label="Open navigation"
-                                >
-                                    <svg
-                                        className="w-6 h-6"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                        strokeWidth="1.5"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                                        />
-                                    </svg>
-                                </button>
-
-                                <div className="flex-1 min-w-0">
-                                    <h2
-                                        className="text-lg md:text-xl truncate"
-                                        style={{
-                                            fontFamily: 'var(--font-serif)',
-                                            fontWeight: 500,
-                                            color: 'var(--color-charcoal)',
-                                        }}
-                                    >
-                                        {navigation.find(item => item.href === pathname)?.name ||
-                                            'Daily Organization'}
-                                    </h2>
-                                    <p
-                                        className="mt-0.5 text-xs md:text-sm truncate"
-                                        style={{ color: 'var(--color-slate)' }}
-                                    >
-                                        {getCurrentDateString()}
-                                    </p>
-                                </div>
-
-                                {/* Time pill — hidden on mobile to give page title room */}
+                <ToastProvider>
+                    <div
+                        className="min-h-screen"
+                        style={{
+                            background: 'var(--ambient-gradient)',
+                            backgroundAttachment: 'fixed',
+                        }}
+                    >
+                        <div className="flex h-screen">
+                            {/* ── Mobile backdrop overlay ── */}
+                            {sidebarOpen && (
                                 <div
-                                    className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0"
+                                    className="fixed inset-0 z-30 md:hidden"
+                                    style={{ background: 'rgba(0,0,0,0.45)' }}
+                                    onClick={closeSidebar}
+                                    aria-hidden="true"
+                                />
+                            )}
+
+                            {/* ── Sidebar ── */}
+                            {/* Desktop: always visible, static */}
+                            {/* Mobile: slides in from left as a fixed overlay */}
+                            <div
+                                className={[
+                                    'glass-sidebar flex flex-col',
+                                    // Desktop: normal flow
+                                    'md:relative md:translate-x-0 md:w-72',
+                                    // Mobile: fixed overlay, slide in/out
+                                    'fixed inset-y-0 left-0 z-40 w-72',
+                                    'transition-transform duration-300 ease-in-out',
+                                    sidebarOpen
+                                        ? 'translate-x-0'
+                                        : '-translate-x-full md:translate-x-0',
+                                ].join(' ')}
+                            >
+                                <SidebarContent pathname={pathname} onClose={closeSidebar} />
+                            </div>
+
+                            {/* ── Main content ── */}
+                            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+                                {/* Glass Header */}
+                                <header
+                                    className="px-4 md:px-10 py-4 md:py-6 flex items-center justify-between gap-3"
                                     style={{
-                                        background: 'var(--glass-bg-subtle)',
-                                        backdropFilter: 'blur(12px)',
-                                        WebkitBackdropFilter: 'blur(12px)',
-                                        border: '1px solid var(--glass-border)',
-                                        boxShadow: 'var(--glass-shadow)',
+                                        background: 'var(--glass-bg)',
+                                        backdropFilter: 'blur(var(--glass-blur))',
+                                        WebkitBackdropFilter: 'blur(var(--glass-blur))',
+                                        borderBottom: '1px solid var(--glass-border-subtle)',
                                     }}
                                 >
-                                    <span
-                                        className="w-2 h-2 rounded-full animate-pulse flex-shrink-0"
-                                        style={{ background: 'var(--color-gold)' }}
-                                    />
-                                    <span
-                                        className="text-sm font-medium"
+                                    {/* Hamburger — mobile only */}
+                                    <button
+                                        onClick={() => setSidebarOpen(true)}
+                                        className="md:hidden p-2 rounded-lg flex-shrink-0"
                                         style={{ color: 'var(--color-stone)' }}
+                                        aria-label="Open navigation"
                                     >
-                                        {currentTime || '--:--'}
-                                    </span>
-                                </div>
+                                        <svg
+                                            className="w-6 h-6"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                                            />
+                                        </svg>
+                                    </button>
 
-                                <div className="flex-shrink-0">
-                                    <SyncStatusIndicator />
-                                </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h2
+                                            className="text-lg md:text-xl truncate"
+                                            style={{
+                                                fontFamily: 'var(--font-serif)',
+                                                fontWeight: 500,
+                                                color: 'var(--color-charcoal)',
+                                            }}
+                                        >
+                                            {navigation.find(item => item.href === pathname)
+                                                ?.name || 'Daily Organization'}
+                                        </h2>
+                                        <p
+                                            className="mt-0.5 text-xs md:text-sm truncate"
+                                            style={{ color: 'var(--color-slate)' }}
+                                        >
+                                            {getCurrentDateString()}
+                                        </p>
+                                    </div>
 
-                                <div className="flex-shrink-0">
-                                    <ThemeToggleButton2 className="h-10 w-10 p-2" />
-                                </div>
-                            </header>
+                                    {/* Time pill — hidden on mobile to give page title room */}
+                                    <div
+                                        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0"
+                                        style={{
+                                            background: 'var(--glass-bg-subtle)',
+                                            backdropFilter: 'blur(12px)',
+                                            WebkitBackdropFilter: 'blur(12px)',
+                                            border: '1px solid var(--glass-border)',
+                                            boxShadow: 'var(--glass-shadow)',
+                                        }}
+                                    >
+                                        <span
+                                            className="w-2 h-2 rounded-full animate-pulse flex-shrink-0"
+                                            style={{ background: 'var(--color-gold)' }}
+                                        />
+                                        <span
+                                            className="text-sm font-medium"
+                                            style={{ color: 'var(--color-stone)' }}
+                                        >
+                                            {currentTime || '--:--'}
+                                        </span>
+                                    </div>
 
-                            {/* Page content */}
-                            <main
-                                className="flex-1 overflow-y-auto"
-                                style={{ background: 'transparent' }}
-                            >
-                                <div className="p-4 md:p-10">
-                                    <ErrorBoundary>{children}</ErrorBoundary>
-                                </div>
-                            </main>
+                                    <div className="flex-shrink-0">
+                                        <SyncStatusIndicator />
+                                    </div>
+
+                                    <div className="flex-shrink-0">
+                                        <ThemeToggleButton2 className="h-10 w-10 p-2" />
+                                    </div>
+                                </header>
+
+                                {/* Page content */}
+                                <main
+                                    className="flex-1 overflow-y-auto"
+                                    style={{ background: 'transparent' }}
+                                >
+                                    <div className="p-4 md:p-10">
+                                        <ErrorBoundary>{children}</ErrorBoundary>
+                                    </div>
+                                </main>
+                            </div>
                         </div>
-                    </div>
 
-                    <MinimalErrorBoundary fallbackMessage="Command bar unavailable">
-                        <CommandBar />
-                    </MinimalErrorBoundary>
-                    <MinimalErrorBoundary fallbackMessage="">
-                        <MorningBriefing />
-                    </MinimalErrorBoundary>
-                    <MinimalErrorBoundary fallbackMessage="">
-                        <EveningDebrief />
-                    </MinimalErrorBoundary>
-                    <MinimalErrorBoundary fallbackMessage="">
-                        <PomodoroTimer />
-                    </MinimalErrorBoundary>
-                </div>
+                        <MinimalErrorBoundary fallbackMessage="Command bar unavailable">
+                            <CommandBar />
+                        </MinimalErrorBoundary>
+                        <MinimalErrorBoundary fallbackMessage="">
+                            <MorningBriefing />
+                        </MinimalErrorBoundary>
+                        <MinimalErrorBoundary fallbackMessage="">
+                            <EveningDebrief />
+                        </MinimalErrorBoundary>
+                        <MinimalErrorBoundary fallbackMessage="">
+                            <PomodoroTimer />
+                        </MinimalErrorBoundary>
+                    </div>
+                </ToastProvider>
             </ThemeProvider>
         </AuthProvider>
     );

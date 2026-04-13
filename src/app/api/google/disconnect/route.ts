@@ -3,13 +3,9 @@ import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { sessionOptions, type SessionData } from '@/lib/session';
 
-// Returns Google tokens stored in the encrypted session.
-export async function GET() {
+export async function POST() {
     const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
-
-    if (!session.googleTokens) {
-        return NextResponse.json({ error: 'No tokens available' }, { status: 404 });
-    }
-
-    return NextResponse.json(session.googleTokens);
+    delete session.googleTokens;
+    await session.save();
+    return NextResponse.json({ success: true });
 }
