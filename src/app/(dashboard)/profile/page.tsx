@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { DataService } from '@/lib/sync/DataService';
+import { db } from '@/lib/database';
 import { UserPreferences } from '@/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { logger } from '@/lib/logger';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ProfilePage() {
+    const { user } = useAuth();
     const [preferences, setPreferences] = useState<UserPreferences | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -16,14 +19,73 @@ export default function ProfilePage() {
     const searchParams = useSearchParams();
 
     const [profile, setProfile] = useState({
-        name: 'John Doe',
-        email: 'john@example.com',
+        name: 'User',
+        email: '',
         avatar: '',
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         joinedDate: new Date().toISOString(),
     });
 
     const [editedProfile, setEditedProfile] = useState(profile);
+
+    const [realStats, setRealStats] = useState({
+        habitsTracked: 0,
+        tasksCompleted: 0,
+        daysPlanned: 0,
+    });
+
+    // Load real stats from IndexedDB
+    useEffect(() => {
+        const loadStats = async () => {
+            try {
+                const [habits, tasks, plansCount] = await Promise.all([
+                    DataService.getAllHabits(),
+                    DataService.getAllTasks(),
+                    db.plans.count(),
+                ]);
+                setRealStats({
+                    habitsTracked: habits.filter(h => h.isActive !== false).length,
+                    tasksCompleted: tasks.filter(t => t.isCompleted).length,
+                    daysPlanned: plansCount,
+                });
+            } catch (e) {
+                logger.error('Failed to load profile stats', { error: String(e) });
+            }
+        };
+        loadStats();
+    }, []);
+
+    // Load saved profile name from localStorage (persists edits across sessions)
+    useEffect(() => {
+        const saved = localStorage.getItem('user_profile_name');
+        if (saved) {
+            setProfile(prev => ({ ...prev, name: saved }));
+            setEditedProfile(prev => ({ ...prev, name: saved }));
+        }
+    }, []);
+
+    // Populate profile from authenticated user
+    useEffect(() => {
+        if (user) {
+            const authName =
+                (user.user_metadata?.full_name as string | undefined) ||
+                (user.user_metadata?.name as string | undefined) ||
+                user.email?.split('@')[0] ||
+                'User';
+            // Only override name if user hasn't saved a custom one
+            const savedName = localStorage.getItem('user_profile_name');
+            setProfile(prev => ({
+                ...prev,
+                name: savedName || authName,
+                email: user.email || prev.email,
+            }));
+            setEditedProfile(prev => ({
+                ...prev,
+                name: savedName || authName,
+                email: user.email || prev.email,
+            }));
+        }
+    }, [user]);
 
     const loadPreferences = async () => {
         const prefs = await DataService.getPreferences();
@@ -85,12 +147,13 @@ export default function ProfilePage() {
 
     const handleSave = async () => {
         setIsSaving(true);
-        // Simulate save - in production, connect to your backend
         setTimeout(() => {
             setProfile(editedProfile);
+            // Persist name so it survives page reloads
+            localStorage.setItem('user_profile_name', editedProfile.name);
             setIsEditing(false);
             setIsSaving(false);
-        }, 1000);
+        }, 500);
     };
 
     const handleCancel = () => {
@@ -132,10 +195,10 @@ export default function ProfilePage() {
     };
 
     const stats = [
-        { label: 'Days Planned', value: 47 },
-        { label: 'Habits Tracked', value: 12 },
-        { label: 'Tasks Completed', value: 156 },
-        { label: 'Current Streak', value: '14 days' },
+        { label: 'Days Planned', value: realStats.daysPlanned },
+        { label: 'Habits Tracked', value: realStats.habitsTracked },
+        { label: 'Tasks Completed', value: realStats.tasksCompleted },
+        { label: 'Active Habits', value: realStats.habitsTracked },
     ];
 
     return (
@@ -149,11 +212,11 @@ export default function ProfilePage() {
                     boxShadow: 'var(--shadow-soft)',
                 }}
             >
-                <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-6">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex items-center gap-4 sm:gap-6">
                         {/* Avatar */}
                         <div
-                            className="w-24 h-24 rounded-full flex items-center justify-center text-2xl font-medium"
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-2xl font-medium flex-shrink-0"
                             style={{
                                 background:
                                     'linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%)',
