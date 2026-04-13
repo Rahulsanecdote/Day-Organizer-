@@ -15,8 +15,14 @@ export default function DashboardPage() {
 
     useEffect(() => {
         async function init() {
-            // Load Profile Name
-            const name = user?.user_metadata?.name || user?.user_metadata?.full_name || 'Rahul';
+            // Load Profile Name: auth metadata → localStorage custom name → email username → generic
+            const savedName = localStorage.getItem('user_profile_name');
+            const name =
+                savedName ||
+                (user?.user_metadata?.name as string | undefined) ||
+                (user?.user_metadata?.full_name as string | undefined) ||
+                user?.email?.split('@')[0] ||
+                'there';
             setUserName(name);
 
             // Load State

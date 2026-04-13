@@ -471,9 +471,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                                     </p>
                                 </div>
 
-                                {/* Time pill */}
+                                {/* Time pill — hidden on mobile to give page title room */}
                                 <div
-                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0"
+                                    className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0"
                                     style={{
                                         background: 'var(--glass-bg-subtle)',
                                         backdropFilter: 'blur(12px)',
