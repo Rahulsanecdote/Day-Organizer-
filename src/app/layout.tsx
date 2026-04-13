@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Inter, Cormorant_Garamond } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 
@@ -8,22 +7,6 @@ export const metadata: Metadata = {
     description:
         'Intelligent daily planning powered by AI — schedule habits, tasks, and focus blocks that fit your life.',
 };
-
-// Configure fonts using next/font for optimal loading
-const inter = Inter({
-    subsets: ['latin'],
-    weight: ['300', '400', '500', '600'],
-    variable: '--font-inter',
-    display: 'swap',
-});
-
-const cormorant = Cormorant_Garamond({
-    subsets: ['latin'],
-    weight: ['300', '400', '500', '600', '700'],
-    style: ['normal', 'italic'],
-    variable: '--font-serif',
-    display: 'swap',
-});
 
 // Blocking script to prevent theme flash - runs before React hydration
 const themeInitScript = `
@@ -47,7 +30,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <html
             lang="en"
             suppressHydrationWarning
-            className={`${inter.variable} ${cormorant.variable}`}
+            style={
+                {
+                    '--font-inter':
+                        'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                    '--font-serif': '"Cormorant Garamond", "Times New Roman", Georgia, serif',
+                } as React.CSSProperties
+            }
         >
             <head>
                 {/* Blocking script prevents theme flash by running before paint */}

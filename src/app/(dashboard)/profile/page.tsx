@@ -8,9 +8,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/toast';
 
 export default function ProfilePage() {
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [preferences, setPreferences] = useState<UserPreferences | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -100,29 +102,32 @@ export default function ProfilePage() {
 
         if (connected === 'true') {
             try {
-                // Tokens are stored server-side after OAuth — retrieve them from the session
-                const res = await fetch('/api/google/tokens');
-                if (!res.ok) throw new Error('Token retrieval failed');
-                const tokens = await res.json();
+                const statusRes = await fetch('/api/google/tokens');
+                if (!statusRes.ok) throw new Error('Token retrieval failed');
+                const tokens = await statusRes.json();
 
                 const prefs = await DataService.getPreferences();
                 if (prefs) {
-                    const updatedPrefs = { ...prefs, googleCalendarTokens: tokens };
+                    const updatedPrefs = {
+                        ...prefs,
+                        googleCalendarTokens: tokens,
+                        googleCalendarConnected: true,
+                    };
                     await DataService.savePreferences(updatedPrefs);
                     setPreferences(updatedPrefs);
                 }
 
                 router.replace('/profile');
-                alert('Google Calendar connected successfully!');
+                showToast('Google Calendar connected successfully!', 'success');
             } catch (e) {
                 logger.error('Failed to retrieve Google tokens', { error: String(e) });
-                alert('Failed to connect Google Calendar');
+                showToast('Failed to connect Google Calendar', 'error');
             }
         } else if (error) {
-            alert(`Google Calendar connection failed: ${error}`);
+            showToast(`Google Calendar connection failed: ${error}`, 'error');
             router.replace('/profile');
         }
-    }, [searchParams, router]);
+    }, [searchParams, router, showToast]);
 
     useEffect(() => {
         loadPreferences();
@@ -137,11 +142,14 @@ export default function ProfilePage() {
         if (!preferences) return;
 
         if (confirm('Are you sure you want to disconnect Google Calendar?')) {
+            await fetch('/api/google/disconnect', { method: 'POST' });
             const updatedPrefs = { ...preferences };
             delete updatedPrefs.googleCalendarTokens;
+            updatedPrefs.googleCalendarConnected = false;
 
             await DataService.savePreferences(updatedPrefs);
             setPreferences(updatedPrefs);
+            showToast('Google Calendar disconnected.', 'success');
         }
     };
 
@@ -178,11 +186,11 @@ export default function ProfilePage() {
     };
 
     const handleChangePassword = () => {
-        alert('Password change functionality would open here.');
+        showToast('Password change flow is coming soon.', 'info');
     };
 
     const handleExportData = () => {
-        alert('Data export started. You will receive an email shortly.');
+        showToast('Data export started. You will receive an email shortly.', 'success');
     };
 
     const getInitials = (name: string) => {
@@ -373,14 +381,14 @@ export default function ProfilePage() {
                                 Google Calendar
                             </div>
                             <div className="text-xs" style={{ color: 'var(--color-mist)' }}>
-                                {preferences?.googleCalendarTokens
+                                {preferences?.googleCalendarConnected
                                     ? 'Connected'
                                     : 'Sync your fixed events'}
                             </div>
                         </div>
                     </div>
 
-                    {preferences?.googleCalendarTokens ? (
+                    {preferences?.googleCalendarConnected ? (
                         <button
                             onClick={handleDisconnectGoogle}
                             className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
