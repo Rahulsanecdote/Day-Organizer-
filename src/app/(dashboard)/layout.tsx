@@ -15,317 +15,520 @@ import MorningBriefing from '@/components/assistant/MorningBriefing';
 import EveningDebrief from '@/components/assistant/EveningDebrief';
 import PomodoroTimer from '@/components/PomodoroTimer';
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [currentTime, setCurrentTime] = useState<string>('');
+// ── Module-level constants ──────────────────────────────────────────────────
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        await initializeDatabase();
-        setIsInitialized(true);
-      } catch (error) {
-        logger.error('Failed to initialize database', { error: String(error) });
-      }
-    };
-    init();
-  }, []);
-
-  // Update time on client only to avoid hydration mismatch
-  useEffect(() => {
-    const updateTime = () => {
-      setCurrentTime(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, []);
-
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto mb-6">
-            <div className="absolute inset-0 border-2 border-[#E8E4DF] rounded-full"></div>
-            <div className="absolute inset-0 border-2 border-transparent border-t-[#B8976B] rounded-full animate-spin"></div>
-          </div>
-          <p className="text-[#6B6560] tracking-wide text-sm uppercase">Preparing your day...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const navigation = [
+const navigation = [
     { name: 'Home', href: '/dashboard', icon: 'home' },
     { name: 'Morning', href: '/morning', icon: 'today' },
-    { name: 'Focus', href: '/plan', icon: 'plan' }, // Renaming Plan to Focus in UI
+    { name: 'Focus', href: '/plan', icon: 'plan' },
     { name: 'Habits', href: '/habits', icon: 'habits' },
     { name: 'Tasks', href: '/tasks', icon: 'tasks' },
     { name: 'History', href: '/history', icon: 'history' },
     { name: 'Analytics', href: '/analytics', icon: 'analytics' },
     { name: 'Profile', href: '/profile', icon: 'profile' },
     { name: 'Settings', href: '/onboarding', icon: 'settings' },
-  ];
+];
 
-  const getIcon = (icon: string) => {
-    const iconClass = "w-5 h-5";
+function getIcon(icon: string): React.ReactNode {
+    const iconClass = 'w-5 h-5';
     switch (icon) {
-      case 'home':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-          </svg>
-        );
-      case 'today':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-          </svg>
-        );
-      case 'plan':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
-          </svg>
-        );
-      case 'habits':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-          </svg>
-        );
-      case 'tasks':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-          </svg>
-        );
-      case 'history':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
-          </svg>
-        );
-      case 'analytics':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
-          </svg>
-        );
-      case 'profile':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-          </svg>
-        );
-      case 'settings':
-        return (
-          <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-          </svg>
-        );
-      default:
-        return null;
+        case 'home':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
+                    />
+                </svg>
+            );
+        case 'today':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"
+                    />
+                </svg>
+            );
+        case 'plan':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z"
+                    />
+                </svg>
+            );
+        case 'habits':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
+                    />
+                </svg>
+            );
+        case 'tasks':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                    />
+                </svg>
+            );
+        case 'history':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"
+                    />
+                </svg>
+            );
+        case 'analytics':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"
+                    />
+                </svg>
+            );
+        case 'profile':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+                    />
+                </svg>
+            );
+        case 'settings':
+            return (
+                <svg
+                    className={iconClass}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"
+                    />
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                    />
+                </svg>
+            );
+        default:
+            return null;
     }
-  };
-
-  return (
-    <AuthProvider>
-      <ThemeProvider>
-        <div className="min-h-screen" style={{ background: 'var(--ambient-gradient)', backgroundAttachment: 'fixed' }}>
-          <div className="flex h-screen">
-            {/* Glass Sidebar */}
-            <div
-              className="w-72 flex flex-col glass-sidebar"
-            >
-              {/* Logo */}
-              <div className="px-8 py-8" style={{ borderBottom: '1px solid var(--glass-border-subtle)' }}>
-                <h1
-                  className="text-2xl tracking-tight"
-                  style={{
-                    fontFamily: 'var(--font-serif)',
-                    fontWeight: 500,
-                    color: 'var(--color-charcoal)',
-                    textShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                  }}
-                >
-                  Daily Organizer
-                </h1>
-                <p
-                  className="mt-1 text-sm tracking-wide"
-                  style={{ color: 'var(--color-mist)' }}
-                >
-                  Curate your perfect day
-                </p>
-              </div>
-
-              {/* Navigation */}
-              <nav className="flex-1 px-4 py-6">
-                <div className="space-y-1">
-                  {navigation.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        className="group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300"
-                        style={{
-                          background: isActive ? 'var(--glass-bg-subtle)' : 'transparent',
-                          color: isActive ? 'var(--color-gold-dark)' : 'var(--color-stone)',
-                          border: isActive ? '1px solid var(--glass-border)' : '1px solid transparent',
-                          boxShadow: isActive ? 'var(--glass-shadow), 0 0 20px rgba(184, 151, 107, 0.1)' : 'none',
-                        }}
-                      >
-                        <span
-                          className="transition-colors duration-200"
-                          style={{
-                            color: isActive ? 'var(--color-gold)' : 'var(--color-mist)'
-                          }}
-                        >
-                          {getIcon(item.icon)}
-                        </span>
-                        <span
-                          className="font-medium text-sm tracking-wide"
-                          style={{
-                            color: isActive ? 'var(--color-charcoal)' : 'var(--color-stone)'
-                          }}
-                        >
-                          {item.name}
-                        </span>
-                        {isActive && (
-                          <span
-                            className="ml-auto w-1.5 h-1.5 rounded-full"
-                            style={{ background: 'var(--color-gold)' }}
-                          />
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </nav>
-
-              {/* Footer */}
-              <div
-                className="px-8 py-6"
-                style={{ borderTop: '1px solid var(--glass-border-subtle)' }}
-              >
-                <p
-                  className="text-xs tracking-wider uppercase"
-                  style={{ color: 'var(--color-mist)' }}
-                >
-                  Version 1.0.0
-                </p>
-              </div>
-            </div>
-
-            {/* Main content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Glass Header */}
-              <header
-                className="px-10 py-6 flex items-center justify-between"
-                style={{
-                  background: 'var(--glass-bg)',
-                  backdropFilter: 'blur(var(--glass-blur))',
-                  WebkitBackdropFilter: 'blur(var(--glass-blur))',
-                  borderBottom: '1px solid var(--glass-border-subtle)'
-                }}
-              >
-                <div>
-                  <h2
-                    className="text-xl"
-                    style={{
-                      fontFamily: 'var(--font-serif)',
-                      fontWeight: 500,
-                      color: 'var(--color-charcoal)'
-                    }}
-                  >
-                    {navigation.find(item => item.href === pathname)?.name || 'Daily Organization'}
-                  </h2>
-                  <p
-                    className="mt-1 text-sm"
-                    style={{ color: 'var(--color-slate)' }}
-                  >
-                    {getCurrentDateString()}
-                  </p>
-                </div>
-
-                {/* Current time indicator - Glass pill */}
-                <div
-                  className="flex items-center gap-2 px-4 py-2 rounded-full"
-                  style={{
-                    background: 'var(--glass-bg-subtle)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: '1px solid var(--glass-border)',
-                    boxShadow: 'var(--glass-shadow)'
-                  }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full animate-pulse"
-                    style={{ background: 'var(--color-gold)' }}
-                  />
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: 'var(--color-stone)' }}
-                  >
-                    {currentTime || '--:--'}
-                  </span>
-                </div>
-
-                <div className="ml-4">
-                  <SyncStatusIndicator />
-                </div>
-
-                <div className="ml-4">
-                  <ThemeToggleButton2 className="h-10 w-10 p-2" />
-                </div>
-              </header>
-
-              {/* Main content area */}
-              <main
-                className="flex-1 overflow-y-auto"
-                style={{ background: 'transparent' }}
-              >
-                <div className="p-10">
-                  <ErrorBoundary>
-                    {children}
-                  </ErrorBoundary>
-                </div>
-              </main>
-            </div>
-          </div>
-          {/* Wrap overlay components in minimal boundaries so errors don't crash the whole app */}
-          <MinimalErrorBoundary fallbackMessage="Command bar unavailable">
-            <CommandBar />
-          </MinimalErrorBoundary>
-          <MinimalErrorBoundary fallbackMessage="">
-            <MorningBriefing />
-          </MinimalErrorBoundary>
-          <MinimalErrorBoundary fallbackMessage="">
-            <EveningDebrief />
-          </MinimalErrorBoundary>
-          <MinimalErrorBoundary fallbackMessage="">
-            <PomodoroTimer />
-          </MinimalErrorBoundary>
-        </div>
-      </ThemeProvider>
-    </AuthProvider>
-  );
 }
 
 function getCurrentDateString(): string {
-  const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  };
-  return now.toLocaleDateString('en-US', options);
+    const now = new Date();
+    return now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+}
+
+// ── Sidebar sub-component (declared at module level to satisfy lint) ─────────
+
+function SidebarContent({ pathname, onClose }: { pathname: string; onClose: () => void }) {
+    return (
+        <>
+            {/* Logo */}
+            <div
+                className="px-8 py-8"
+                style={{ borderBottom: '1px solid var(--glass-border-subtle)' }}
+            >
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1
+                            className="text-2xl tracking-tight"
+                            style={{
+                                fontFamily: 'var(--font-serif)',
+                                fontWeight: 500,
+                                color: 'var(--color-charcoal)',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                            }}
+                        >
+                            Daily Organizer
+                        </h1>
+                        <p
+                            className="mt-1 text-sm tracking-wide"
+                            style={{ color: 'var(--color-mist)' }}
+                        >
+                            Curate your perfect day
+                        </p>
+                    </div>
+                    {/* Close button — mobile only */}
+                    <button
+                        onClick={onClose}
+                        className="md:hidden p-2 rounded-lg"
+                        style={{ color: 'var(--color-mist)' }}
+                        aria-label="Close navigation"
+                    >
+                        <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M6 18 18 6M6 6l12 12"
+                            />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 px-4 py-6 overflow-y-auto">
+                <div className="space-y-1">
+                    {navigation.map(item => {
+                        const isActive = pathname === item.href;
+                        return (
+                            <Link
+                                key={item.name}
+                                href={item.href}
+                                className="group flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300"
+                                style={{
+                                    background: isActive ? 'var(--glass-bg-subtle)' : 'transparent',
+                                    color: isActive
+                                        ? 'var(--color-gold-dark)'
+                                        : 'var(--color-stone)',
+                                    border: isActive
+                                        ? '1px solid var(--glass-border)'
+                                        : '1px solid transparent',
+                                    boxShadow: isActive
+                                        ? 'var(--glass-shadow), 0 0 20px rgba(184, 151, 107, 0.1)'
+                                        : 'none',
+                                }}
+                            >
+                                <span
+                                    className="transition-colors duration-200"
+                                    style={{
+                                        color: isActive ? 'var(--color-gold)' : 'var(--color-mist)',
+                                    }}
+                                >
+                                    {getIcon(item.icon)}
+                                </span>
+                                <span
+                                    className="font-medium text-sm tracking-wide"
+                                    style={{
+                                        color: isActive
+                                            ? 'var(--color-charcoal)'
+                                            : 'var(--color-stone)',
+                                    }}
+                                >
+                                    {item.name}
+                                </span>
+                                {isActive && (
+                                    <span
+                                        className="ml-auto w-1.5 h-1.5 rounded-full"
+                                        style={{ background: 'var(--color-gold)' }}
+                                    />
+                                )}
+                            </Link>
+                        );
+                    })}
+                </div>
+            </nav>
+
+            {/* Footer */}
+            <div
+                className="px-8 py-6"
+                style={{ borderTop: '1px solid var(--glass-border-subtle)' }}
+            >
+                <p
+                    className="text-xs tracking-wider uppercase"
+                    style={{ color: 'var(--color-mist)' }}
+                >
+                    Version 1.0.0
+                </p>
+            </div>
+        </>
+    );
+}
+
+// ── Root layout ──────────────────────────────────────────────────────────────
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const [isInitialized, setIsInitialized] = useState(false);
+    const [currentTime, setCurrentTime] = useState<string>('');
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    useEffect(() => {
+        const init = async () => {
+            try {
+                await initializeDatabase();
+                setIsInitialized(true);
+            } catch (error) {
+                logger.error('Failed to initialize database', { error: String(error) });
+            }
+        };
+        init();
+    }, []);
+
+    // Close sidebar when the route changes (mobile navigation).
+    // Calling setSidebarOpen inside an effect is intentional here — this is a
+    // one-shot reset triggered by pathname, not a cascading update loop.
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSidebarOpen(false);
+    }, [pathname]);
+
+    // Update time on client only to avoid hydration mismatch
+    useEffect(() => {
+        const updateTime = () => {
+            setCurrentTime(
+                new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            );
+        };
+        updateTime();
+        const interval = setInterval(updateTime, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    if (!isInitialized) {
+        return (
+            <div
+                className="min-h-screen flex items-center justify-center"
+                style={{ background: 'var(--color-cream)' }}
+            >
+                <div className="text-center">
+                    <div className="relative w-16 h-16 mx-auto mb-6">
+                        <div className="absolute inset-0 border-2 border-[#E8E4DF] rounded-full" />
+                        <div className="absolute inset-0 border-2 border-transparent border-t-[#B8976B] rounded-full animate-spin" />
+                    </div>
+                    <p className="text-[#6B6560] tracking-wide text-sm uppercase">
+                        Preparing your day...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    const closeSidebar = () => setSidebarOpen(false);
+
+    return (
+        <AuthProvider>
+            <ThemeProvider>
+                <div
+                    className="min-h-screen"
+                    style={{ background: 'var(--ambient-gradient)', backgroundAttachment: 'fixed' }}
+                >
+                    <div className="flex h-screen">
+                        {/* ── Mobile backdrop overlay ── */}
+                        {sidebarOpen && (
+                            <div
+                                className="fixed inset-0 z-30 md:hidden"
+                                style={{ background: 'rgba(0,0,0,0.45)' }}
+                                onClick={closeSidebar}
+                                aria-hidden="true"
+                            />
+                        )}
+
+                        {/* ── Sidebar ── */}
+                        {/* Desktop: always visible, static */}
+                        {/* Mobile: slides in from left as a fixed overlay */}
+                        <div
+                            className={[
+                                'glass-sidebar flex flex-col',
+                                // Desktop: normal flow
+                                'md:relative md:translate-x-0 md:w-72',
+                                // Mobile: fixed overlay, slide in/out
+                                'fixed inset-y-0 left-0 z-40 w-72',
+                                'transition-transform duration-300 ease-in-out',
+                                sidebarOpen
+                                    ? 'translate-x-0'
+                                    : '-translate-x-full md:translate-x-0',
+                            ].join(' ')}
+                        >
+                            <SidebarContent pathname={pathname} onClose={closeSidebar} />
+                        </div>
+
+                        {/* ── Main content ── */}
+                        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+                            {/* Glass Header */}
+                            <header
+                                className="px-4 md:px-10 py-4 md:py-6 flex items-center justify-between gap-3"
+                                style={{
+                                    background: 'var(--glass-bg)',
+                                    backdropFilter: 'blur(var(--glass-blur))',
+                                    WebkitBackdropFilter: 'blur(var(--glass-blur))',
+                                    borderBottom: '1px solid var(--glass-border-subtle)',
+                                }}
+                            >
+                                {/* Hamburger — mobile only */}
+                                <button
+                                    onClick={() => setSidebarOpen(true)}
+                                    className="md:hidden p-2 rounded-lg flex-shrink-0"
+                                    style={{ color: 'var(--color-stone)' }}
+                                    aria-label="Open navigation"
+                                >
+                                    <svg
+                                        className="w-6 h-6"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                                        />
+                                    </svg>
+                                </button>
+
+                                <div className="flex-1 min-w-0">
+                                    <h2
+                                        className="text-lg md:text-xl truncate"
+                                        style={{
+                                            fontFamily: 'var(--font-serif)',
+                                            fontWeight: 500,
+                                            color: 'var(--color-charcoal)',
+                                        }}
+                                    >
+                                        {navigation.find(item => item.href === pathname)?.name ||
+                                            'Daily Organization'}
+                                    </h2>
+                                    <p
+                                        className="mt-0.5 text-xs md:text-sm truncate"
+                                        style={{ color: 'var(--color-slate)' }}
+                                    >
+                                        {getCurrentDateString()}
+                                    </p>
+                                </div>
+
+                                {/* Time pill */}
+                                <div
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0"
+                                    style={{
+                                        background: 'var(--glass-bg-subtle)',
+                                        backdropFilter: 'blur(12px)',
+                                        WebkitBackdropFilter: 'blur(12px)',
+                                        border: '1px solid var(--glass-border)',
+                                        boxShadow: 'var(--glass-shadow)',
+                                    }}
+                                >
+                                    <span
+                                        className="w-2 h-2 rounded-full animate-pulse flex-shrink-0"
+                                        style={{ background: 'var(--color-gold)' }}
+                                    />
+                                    <span
+                                        className="text-sm font-medium"
+                                        style={{ color: 'var(--color-stone)' }}
+                                    >
+                                        {currentTime || '--:--'}
+                                    </span>
+                                </div>
+
+                                <div className="flex-shrink-0">
+                                    <SyncStatusIndicator />
+                                </div>
+
+                                <div className="flex-shrink-0">
+                                    <ThemeToggleButton2 className="h-10 w-10 p-2" />
+                                </div>
+                            </header>
+
+                            {/* Page content */}
+                            <main
+                                className="flex-1 overflow-y-auto"
+                                style={{ background: 'transparent' }}
+                            >
+                                <div className="p-4 md:p-10">
+                                    <ErrorBoundary>{children}</ErrorBoundary>
+                                </div>
+                            </main>
+                        </div>
+                    </div>
+
+                    <MinimalErrorBoundary fallbackMessage="Command bar unavailable">
+                        <CommandBar />
+                    </MinimalErrorBoundary>
+                    <MinimalErrorBoundary fallbackMessage="">
+                        <MorningBriefing />
+                    </MinimalErrorBoundary>
+                    <MinimalErrorBoundary fallbackMessage="">
+                        <EveningDebrief />
+                    </MinimalErrorBoundary>
+                    <MinimalErrorBoundary fallbackMessage="">
+                        <PomodoroTimer />
+                    </MinimalErrorBoundary>
+                </div>
+            </ThemeProvider>
+        </AuthProvider>
+    );
 }
