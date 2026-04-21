@@ -95,3 +95,11 @@ export interface AssistantLog {
     success: boolean;
     resultSummary: string;
 }
+
+export interface AIBriefingResult {
+    greeting: string;
+    summary: string;
+    topPriority: string;
+    motivation: string;
+    tip: string;
+}
