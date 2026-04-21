@@ -1,157 +1,107 @@
-# Day Organizer Codebase Audit (April 13, 2026)
+# Day Organizer Codebase Audit (April 21, 2026)
 
 ## Scope
 
-- Static audit of the entire repository (`src`, API routes, sync layer, auth flow, and build behavior).
-- Validation commands run: `npm test -- --runInBand`, `npm run lint`, `npm run build`.
+- Full repository static audit of application code, API routes, data/sync layers, and auth integrations.
+- Validation commands run in this audit:
+    - `npm test -- --runInBand`
+    - `npm run lint`
+    - `npm run build`
+    - `npm audit --omit=dev` (blocked by registry permissions in this environment)
 
 ## Executive Summary
 
-The app's biggest functional risk is **integration mismatch across Google Calendar + sync flows**. The UI sends one payload format, the API expects another, and session token lifecycle conflicts with the client persistence approach. This produces user-visible failure modes that feel "illogical" (calendar import appears connected but doesn't reliably work).
+The project is in generally solid shape from a correctness baseline: all test suites pass, linting passes, and production build passes in this environment.
 
-The second major issue is **maintainability-driven UI inconsistency**: very large page components, extensive inline styles, and native `alert`/hard navigation patterns cause a fragmented experience and make defects more likely.
+The most important remaining risks are:
+
+1. **Sensitive OAuth tokens are copied from httpOnly session storage into client-side persisted preferences** (and can then be synced), which weakens token security posture.
+2. **Dashboard pages are extremely large and state-heavy**, increasing regression risk and slowing feature iteration.
+3. **Cloud sync observability and failure handling are still limited** (errors are logged, but retries/backoff/UX feedback are basic).
 
 ---
 
 ## High Severity Findings
 
-### 1) Google Calendar import contract mismatch (client ↔ server)
+### 1) Google OAuth tokens are persisted client-side in user preferences
 
-**Impact:** Calendar import can silently fail or return unexpected data.
-
-- Morning flow posts `{ tokens, start, end }` to `/api/google/events`.
-- API route ignores those fields and only reads `date`, then relies on tokens from server session.
-- This is a hard contract mismatch between caller and endpoint.
+**Impact:** Access/refresh tokens can be exposed via client-side storage or downstream sync surfaces, undermining the security benefit of httpOnly session cookies.
 
 **Evidence:**
 
-- `src/app/(dashboard)/morning/page.tsx` sends `tokens/start/end`.
-- `src/app/api/google/events/route.ts` expects `date` and `session.googleTokens`.
+- Google callback stores tokens server-side in encrypted session cookie (`session.googleTokens`).
+- Profile callback then calls `/api/google/tokens` and writes returned tokens into `preferences.googleCalendarTokens` via `DataService.savePreferences`.
+- `UserPreferences` type explicitly models persisted `googleCalendarTokens`.
 
 **Recommendation:**
 
-- Define one canonical contract for event fetch (prefer server-side session only).
-- Update morning flow to send `{ date }`.
-- Remove client-side token passing entirely.
-
-### 2) OAuth token lifecycle is internally inconsistent
-
-**Impact:** Connected Google account state is unstable, especially across page transitions.
-
-- `/api/google/tokens` is single-use and clears session tokens after returning them.
-- `/api/google/events` later requires session tokens to exist.
-- After token retrieval, events endpoint can return 401 even though UI may show "connected".
-
-**Evidence:**
-
-- `src/app/api/google/tokens/route.ts` deletes `session.googleTokens`.
-- `src/app/api/google/events/route.ts` requires `session.googleTokens?.access_token`.
-
-**Recommendation:**
-
-- Keep tokens server-side (session/DB) and never rely on browser-stored raw OAuth tokens.
-- Replace "single-use token download" with a durable server token reference strategy.
-
-### 3) Realtime sync subscription is likely misconfigured
-
-**Impact:** Cross-device updates may not arrive reliably.
-
-- `postgres_changes` subscription is configured with `event`, `schema`, `filter`, but no explicit `table` binding.
-- Handler logic expects `payload.table` and filters by table list.
-
-**Evidence:**
-
-- `src/lib/sync/SyncService.ts` subscription config and downstream table validation.
-
-**Recommendation:**
-
-- Register one subscription per table (`habits`, `tasks`, `daily_inputs`, `plans`) or use documented wildcard table semantics explicitly.
-- Add integration tests around realtime callbacks.
+- Keep Google OAuth credentials server-only.
+- Replace persisted token blobs with a boolean/status record (connected, last validated at, account email).
+- Update API routes to always read tokens from server session (or secure server DB), never from client preferences.
 
 ---
 
 ## Medium Severity Findings
 
-### 4) Build fragility due to runtime Google Font fetches
+### 2) Dashboard feature pages remain very large monoliths
 
-**Impact:** Production builds fail in restricted/no-egress environments.
+**Impact:** Higher change-risk, slower code review, and harder test isolation.
 
-- `next/font/google` pulls remote CSS during build.
-- Current build fails when fonts cannot be fetched.
+**Evidence (line counts):**
 
-**Evidence:**
-
-- `src/app/layout.tsx` imports `Inter` and `Cormorant_Garamond` from `next/font/google`.
-- `npm run build` failed in this environment with font fetch errors.
-
-**Recommendation:**
-
-- Use local/self-hosted fonts (`next/font/local`) for deterministic builds.
-
-### 5) Incomplete auth UX path
-
-**Impact:** User expects social sign-in option that is not implemented in UI.
-
-- Login page has TODO for Google OAuth button.
-
-**Evidence:**
-
-- `src/app/(auth)/login/page.tsx` TODO comment.
+- `plan/page.tsx`: 1735 lines
+- `tasks/page.tsx`: 1274 lines
+- `onboarding/page.tsx`: 1088 lines
+- `habits/page.tsx`: 1061 lines
+- `profile/page.tsx`: 963 lines
+- `today-setup/page.tsx`: 891 lines
+- `history/page.tsx`: 857 lines
 
 **Recommendation:**
 
-- Either implement the button or remove all related messaging/dead code to reduce confusion.
+- Split by workflow sections + feature hooks (data fetching, form logic, mutation actions).
+- Move presentational sections to typed subcomponents.
+- Add focused unit tests around extracted hooks and pure utility transforms.
 
-### 6) UX consistency issues from browser primitives
+### 3) Sync error handling is functional but minimal for production resilience
 
-**Impact:** Interface feels abrupt and less polished.
-
-- Multiple pages use blocking `alert()` dialogs.
-- Some flows use `window.location.href` instead of router navigation.
+**Impact:** Network or Supabase instability can leave users with retries that are opaque and potentially stale pending-change queues.
 
 **Evidence:**
 
-- `src/app/(dashboard)/today-setup/page.tsx` uses both `alert()` and `window.location.href`.
+- Failed push increments retry count but does not implement exponential backoff, jitter, retry ceilings, or surfaced per-record failure messaging.
+- Sync status exposes `lastError` but currently returns `null` in `getStatus()`.
 
 **Recommendation:**
 
-- Replace with non-blocking toast system and `router.push` for in-app transitions.
+- Add bounded exponential backoff and dead-letter handling for repeatedly failing records.
+- Populate `lastError` from push/pull failures and expose actionable UI hints.
+- Add integration tests for retry progression and recovery.
 
 ---
 
-## Structural / Maintainability Findings
+## Low Severity / Observations
 
-### 7) Extremely large page components increase defect rate
+### 4) Build stability improved compared with prior snapshot
 
-**Impact:** Hard to reason about UI/state logic; regression risk is high.
+`npm run build` succeeds in this environment on April 21, 2026 (Next.js 16.2.3), including type-check and static generation.
 
-Largest files observed:
+### 5) Dependency vulnerability scan could not be completed here
 
-- `src/app/(dashboard)/plan/page.tsx` (~1376 lines)
-- `src/app/(dashboard)/tasks/page.tsx` (~1272 lines)
-- `src/app/(dashboard)/profile/page.tsx` (~955 lines)
-- `src/app/(dashboard)/history/page.tsx` (~857 lines)
-- `src/app/(dashboard)/today-setup/page.tsx` (~750 lines)
-- `src/app/(dashboard)/habits/page.tsx` (~736 lines)
-
-**Recommendation:**
-
-- Split by domain hooks + presentational components.
-- Extract shared form sections, cards, and modal patterns.
-- Add feature-level tests for each extracted unit.
+`npm audit --omit=dev` failed with an npm advisory endpoint `403 Forbidden` from this environment, so dependency CVE status is **not** confirmed by this run.
 
 ---
 
-## Suggested Stabilization Plan (order)
+## Validation Snapshot (April 21, 2026)
 
-1. **Fix Google flow contract + token lifecycle** (blocker).
-2. **Fix realtime subscription table bindings**.
-3. **Standardize UX primitives** (toast + router navigation).
-4. **Refactor giant dashboard pages into smaller units**.
-5. **Harden build with local fonts**.
-
-## Current Validation Snapshot
-
-- `npm test -- --runInBand` ✅ pass (all test suites passing).
+- `npm test -- --runInBand` ✅ pass (6 suites, 123 tests).
 - `npm run lint` ✅ pass.
-- `npm run build` ❌ fails in current environment due to Google Font fetch failures.
+- `npm run build` ✅ pass.
+- `npm audit --omit=dev` ⚠️ blocked by npm advisory endpoint permissions (`403 Forbidden`).
+
+## Recommended Prioritized Plan
+
+1. **Security first:** remove client-persisted `googleCalendarTokens`; shift to server-only token management.
+2. **Refactorability:** decompose the top 3 largest dashboard pages (`plan`, `tasks`, `onboarding`) into hooks/components.
+3. **Sync hardening:** add backoff + surfaced sync error states + retry policy tests.
+4. **Ops hygiene:** rerun `npm audit --omit=dev` in CI or a network-allowed environment and track remediations.

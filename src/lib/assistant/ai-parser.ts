@@ -1,9 +1,10 @@
+import 'server-only';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { CommandType, Command } from '@/lib/assistant/types';
 
 // Initialize Gemini client
-const genAI = process.env.GOOGLE_API_KEY
-    ? new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+const genAI = process.env.GEMINI_API_KEY
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
     : null;
 
 const SYSTEM_PROMPT = `You are a command parser for a daily organization app. Parse natural language into structured commands.
@@ -40,7 +41,7 @@ export async function parseWithAI(input: string): Promise<AIParseResult> {
     if (!genAI) {
         return {
             success: false,
-            error: 'AI features not configured. Set GOOGLE_API_KEY in environment.',
+            error: 'AI features not configured. Set GEMINI_API_KEY in environment.',
         };
     }
 
@@ -51,7 +52,11 @@ export async function parseWithAI(input: string): Promise<AIParseResult> {
             contents: [
                 {
                     role: 'user',
-                    parts: [{ text: `${SYSTEM_PROMPT}\n\nParse this command: "${input}"\n\nToday's date is ${new Date().toISOString().split('T')[0]}` }],
+                    parts: [
+                        {
+                            text: `${SYSTEM_PROMPT}\n\nParse this command: "${input}"\n\nToday's date is ${new Date().toISOString().split('T')[0]}`,
+                        },
+                    ],
                 },
             ],
             generationConfig: {
@@ -79,9 +84,18 @@ export async function parseWithAI(input: string): Promise<AIParseResult> {
 
         // Validate command type
         const validTypes: CommandType[] = [
-            'HELP', 'TODAY_WORK', 'TODAY_FIXED', 'PASTE_SCHEDULE',
-            'ADD_HABIT', 'ADD_TASK', 'PLAN', 'LOCK_BLOCK',
-            'UNLOCK_BLOCK', 'EXPORT_JSON', 'STATUS', 'UNKNOWN'
+            'HELP',
+            'TODAY_WORK',
+            'TODAY_FIXED',
+            'PASTE_SCHEDULE',
+            'ADD_HABIT',
+            'ADD_TASK',
+            'PLAN',
+            'LOCK_BLOCK',
+            'UNLOCK_BLOCK',
+            'EXPORT_JSON',
+            'STATUS',
+            'UNKNOWN',
         ];
 
         if (!validTypes.includes(parsed.type)) {
