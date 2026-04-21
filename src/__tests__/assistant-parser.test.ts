@@ -1,6 +1,11 @@
 import { AssistantParser } from '../lib/assistant/parser';
 
 describe('AssistantParser', () => {
+    afterEach(() => {
+        jest.restoreAllMocks();
+        delete (globalThis as { fetch?: typeof fetch }).fetch;
+    });
+
     test('parses HELP command', () => {
         const result = AssistantParser.parse('help');
         expect(result.success).toBe(true);
@@ -62,5 +67,45 @@ describe('AssistantParser', () => {
         const result = AssistantParser.parse('foobar');
         expect(result.success).toBe(false);
         expect(result.error).toBeDefined();
+    });
+
+    test('parseAsync falls back to the server parse route', async () => {
+        const fetchMock = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                success: true,
+                command: { type: 'PLAN', raw: 'optimize my day' },
+            }),
+        } as Response);
+        Object.defineProperty(globalThis, 'fetch', {
+            configurable: true,
+            value: fetchMock,
+        });
+
+        const result = await AssistantParser.parseAsync('optimize my day');
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/api/assistant/parse',
+            expect.objectContaining({
+                method: 'POST',
+            })
+        );
+        expect(result.success).toBe(true);
+        expect(result.command).toEqual({ type: 'PLAN', raw: 'optimize my day' });
+    });
+
+    test('parseAsync returns the regex error if the server parse route fails', async () => {
+        const fetchMock = jest.fn().mockResolvedValue({
+            ok: false,
+        } as Response);
+        Object.defineProperty(globalThis, 'fetch', {
+            configurable: true,
+            value: fetchMock,
+        });
+
+        const result = await AssistantParser.parseAsync('something unrecognized');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Unknown command');
     });
 });

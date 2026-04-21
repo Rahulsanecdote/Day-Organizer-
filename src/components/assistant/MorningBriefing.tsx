@@ -3,9 +3,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { logger } from '@/lib/logger';
 import { DatabaseService } from '@/lib/database';
-import { generateMorningBriefing, AIBriefingResult } from '@/lib/assistant/briefing-ai';
 import type { PlanOutput } from '@/types';
 import { format } from 'date-fns';
+import type { AIBriefingResult } from '@/lib/assistant/types';
 
 export default function MorningBriefing() {
     const [isOpen, setIsOpen] = useState(false);
@@ -34,16 +34,42 @@ export default function MorningBriefing() {
                 const habits = await DatabaseService.getAllHabits();
                 const tasks = await DatabaseService.getAllTasks();
                 const currentTime = format(new Date(), 'HH:mm');
+                const scheduleInfo = {
+                    date: todayPlan.date,
+                    totalBlocks: todayPlan.blocks.length,
+                    tasks: todayPlan.blocks.filter(b => b.type === 'task').map(b => ({
+                        title: b.title,
+                        time: b.start,
+                        duration: `${b.end} - ${b.start}`
+                    })),
+                    habits: todayPlan.blocks.filter(b => b.type === 'habit').map(b => ({
+                        title: b.title,
+                        time: b.start
+                    })),
+                    fixedEvents: todayPlan.blocks
+                        .filter(b => b.type === 'appointment' || b.type === 'call')
+                        .map(b => ({
+                            title: b.title,
+                            time: `${b.start} - ${b.end}`
+                        })),
+                    pendingTasks: tasks.filter(t => !t.isCompleted).length,
+                    activeHabits: habits.filter(h => h.isActive).length,
+                };
 
-                const briefing = await generateMorningBriefing({
-                    plan: todayPlan,
-                    habits,
-                    tasks,
-                    currentTime
+                const response = await fetch('/api/assistant/briefing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scheduleInfo,
+                        currentTime,
+                    }),
                 });
 
-                if (briefing) {
-                    setAiBriefing(briefing);
+                if (response.ok) {
+                    const { briefing } = await response.json() as { briefing: AIBriefingResult | null };
+                    if (briefing) {
+                        setAiBriefing(briefing);
+                    }
                 }
             } catch (error) {
                 logger.error('Failed to generate AI briefing', {

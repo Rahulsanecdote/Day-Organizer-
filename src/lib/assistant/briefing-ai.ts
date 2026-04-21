@@ -1,26 +1,12 @@
+import 'server-only';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { PlanOutput, Habit, Task } from '@/types';
+import type { AIBriefingResult } from '@/lib/assistant/types';
 import { logger } from '@/lib/logger';
 
 // Initialize Gemini client
-const genAI = process.env.GOOGLE_API_KEY
-    ? new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+const genAI = process.env.GEMINI_API_KEY
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
     : null;
-
-export interface BriefingData {
-    plan: PlanOutput;
-    habits: Habit[];
-    tasks: Task[];
-    currentTime: string;
-}
-
-export interface AIBriefingResult {
-    greeting: string;
-    summary: string;
-    topPriority: string;
-    motivation: string;
-    tip: string;
-}
 
 const BRIEFING_PROMPT = `You are a friendly productivity assistant. Generate a concise, motivating morning briefing.
 
@@ -41,7 +27,10 @@ Respond ONLY with valid JSON in this exact format:
   "tip": "[One practical productivity tip for their specific schedule]"
 }`;
 
-export async function generateMorningBriefing(data: BriefingData): Promise<AIBriefingResult | null> {
+export async function generateMorningBriefingFromScheduleInfo(
+    scheduleInfo: unknown,
+    currentTime: string
+): Promise<AIBriefingResult | null> {
     if (!genAI) {
         return null; // AI not configured
     }
@@ -49,33 +38,12 @@ export async function generateMorningBriefing(data: BriefingData): Promise<AIBri
     try {
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-        // Format the schedule for the AI
-        const scheduleInfo = {
-            date: data.plan.date,
-            totalBlocks: data.plan.blocks.length,
-            tasks: data.plan.blocks.filter(b => b.type === 'task').map(b => ({
-                title: b.title,
-                time: b.start,
-                duration: `${b.end} - ${b.start}`
-            })),
-            habits: data.plan.blocks.filter(b => b.type === 'habit').map(b => ({
-                title: b.title,
-                time: b.start
-            })),
-            fixedEvents: data.plan.blocks.filter(b => b.type === 'appointment' || b.type === 'call').map(b => ({
-                title: b.title,
-                time: `${b.start} - ${b.end}`
-            })),
-            pendingTasks: data.tasks.filter(t => !t.isCompleted).length,
-            activeHabits: data.habits.filter(h => h.isActive).length
-        };
-
         const result = await model.generateContent({
             contents: [
                 {
                     role: 'user',
                     parts: [{
-                        text: `${BRIEFING_PROMPT}\n\nUser's schedule for today:\n${JSON.stringify(scheduleInfo, null, 2)}\n\nCurrent time: ${data.currentTime}`
+                        text: `${BRIEFING_PROMPT}\n\nUser's schedule for today:\n${JSON.stringify(scheduleInfo, null, 2)}\n\nCurrent time: ${currentTime}`
                     }],
                 },
             ],

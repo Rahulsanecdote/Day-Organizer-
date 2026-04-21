@@ -5,9 +5,9 @@ import {
     TodayFixedArgs,
     AddHabitArgs,
     AddTaskArgs,
-    LockArgs
+    LockArgs,
+    Command
 } from './types';
-import { parseWithAI } from './ai-parser';
 
 export class AssistantParser {
     // Synchronous parsing using regex patterns
@@ -190,8 +190,31 @@ export class AssistantParser {
             return regexResult;
         }
 
-        // For complex commands, try AI parsing
-        const aiResult = await parseWithAI(input);
+        // For complex commands, try server-side AI parsing
+        let aiResult: { success: boolean; command?: Command; error?: string };
+        try {
+            const response = await fetch('/api/assistant/parse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input }),
+            });
+
+            if (!response.ok) {
+                return {
+                    success: false,
+                    error: regexResult.error || 'Could not parse command',
+                    suggestions: regexResult.suggestions,
+                };
+            }
+
+            aiResult = await response.json() as { success: boolean; command?: Command; error?: string };
+        } catch {
+            return {
+                success: false,
+                error: regexResult.error || 'Could not parse command',
+                suggestions: regexResult.suggestions,
+            };
+        }
 
         if (aiResult.success && aiResult.command) {
             return {
