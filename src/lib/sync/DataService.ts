@@ -2,7 +2,15 @@
 import { DatabaseService } from '../database';
 import { syncService } from './SyncService';
 import { isCloudSyncEnabled } from '../supabase/client';
-import type { Habit, Task, DailyInput, PlanOutput, UserPreferences, DayHistory } from '@/types';
+import type {
+    Habit,
+    Task,
+    DailyInput,
+    PlanOutput,
+    UserPreferences,
+    DayHistory,
+    QuestStats,
+} from '@/types';
 
 export class DataService {
     private static userId: string | null = null;
@@ -159,6 +167,18 @@ export class DataService {
         }
 
         return id;
+    }
+
+    // ============================================================================
+    // QUEST STATS (local-only)
+    // ============================================================================
+
+    static async upsertQuestStatsFromPlan(date: string, plan: PlanOutput): Promise<QuestStats> {
+        return await DatabaseService.upsertQuestStatsFromPlan(date, plan);
+    }
+
+    static async getQuestStatsInRange(startDate: string, endDate: string): Promise<QuestStats[]> {
+        return await DatabaseService.getQuestStatsInRange(startDate, endDate);
     }
 
     // ============================================================================

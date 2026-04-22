@@ -11,7 +11,10 @@ import {
     AssistantLog,
     TomorrowSuggestion,
     FeatureFlag,
+    QuestStats,
 } from '@/types';
+import { format, parseISO, subDays } from 'date-fns';
+import { blockDurationMinutes, computeXP } from '@/lib/quest';
 import { validateImportData, type ImportValidationResult } from './import-validator';
 
 export class AppDatabase extends Dexie {
@@ -26,6 +29,7 @@ export class AppDatabase extends Dexie {
     assistantLogs!: Table<AssistantLog>;
     tomorrowSuggestions!: Table<TomorrowSuggestion>;
     featureFlags!: Table<FeatureFlag>;
+    questStats!: Table<QuestStats>;
 
     constructor() {
         super('DailyOrganizationDB');
@@ -53,6 +57,10 @@ export class AppDatabase extends Dexie {
             assistantLogs: 'id, timestamp, commandType, success',
             tomorrowSuggestions: 'id, date',
             featureFlags: 'key',
+        });
+
+        this.version(3).stores({
+            questStats: 'id, date, updatedAt',
         });
     }
 }
@@ -104,6 +112,91 @@ export class DatabaseServiceImpl {
     async getFeatureFlag(key: string): Promise<boolean> {
         const flag = await this.database.featureFlags.get(key);
         return flag ? flag.enabled : false;
+    }
+
+    async getQuestStats(date: string): Promise<QuestStats | undefined> {
+        return await this.database.questStats.get(date);
+    }
+
+    async getQuestStatsInRange(startDate: string, endDate: string): Promise<QuestStats[]> {
+        return await this.database.questStats
+            .where('date')
+            .between(startDate, endDate, true, true)
+            .toArray();
+    }
+
+    async upsertQuestStatsFromPlan(date: string, plan: PlanOutput): Promise<QuestStats> {
+        const completedBlocks = (plan.blocks ?? []).filter(
+            block =>
+                block.completed &&
+                (block.type === 'task' || block.type === 'habit' || block.type === 'gym')
+        );
+
+        const taskIds = Array.from(
+            new Set(
+                completedBlocks
+                    .filter(block => block.type === 'task' && block.sourceId)
+                    .map(block => block.sourceId as string)
+            )
+        );
+        const habitIds = Array.from(
+            new Set(
+                completedBlocks
+                    .filter(block => block.type === 'habit' && block.sourceId)
+                    .map(block => block.sourceId as string)
+            )
+        );
+
+        const [tasks, habits] = await Promise.all([
+            Promise.all(taskIds.map(id => this.database.tasks.get(id))),
+            Promise.all(habitIds.map(id => this.database.habits.get(id))),
+        ]);
+
+        const taskPriorityById = new Map(
+            tasks
+                .filter((task): task is Task => Boolean(task))
+                .map(task => [task.id, task.priority] as const)
+        );
+        const habitPriorityById = new Map(
+            habits
+                .filter((habit): habit is Habit => Boolean(habit))
+                .map(habit => [habit.id, habit.priority] as const)
+        );
+
+        let xp = 0;
+        for (const block of completedBlocks) {
+            const durationMinutes = blockDurationMinutes(block);
+            const priority =
+                block.type === 'task'
+                    ? (block.sourceId ? taskPriorityById.get(block.sourceId) : undefined) ?? 3
+                    : block.type === 'habit'
+                      ? (block.sourceId ? habitPriorityById.get(block.sourceId) : undefined) ?? 3
+                      : 4;
+
+            xp += computeXP(durationMinutes, priority);
+        }
+
+        const completedCount = completedBlocks.length;
+        const yesterday = format(subDays(parseISO(date), 1), 'yyyy-MM-dd');
+        const previousDayStats = await this.database.questStats.get(yesterday);
+        const streak =
+            completedCount > 0
+                ? previousDayStats && previousDayStats.completedCount > 0
+                    ? previousDayStats.streak + 1
+                    : 1
+                : 0;
+
+        const stats: QuestStats = {
+            id: date,
+            date,
+            xp,
+            streak,
+            completedCount,
+            updatedAt: Date.now(),
+        };
+
+        await this.database.questStats.put(stats);
+        return stats;
     }
 
     // Habits operations
@@ -357,6 +450,7 @@ export class DatabaseServiceImpl {
         const assistantLogs = await this.database.assistantLogs.toArray();
         const tomorrowSuggestions = await this.database.tomorrowSuggestions.toArray();
         const featureFlags = await this.database.featureFlags.toArray();
+        const questStats = await this.database.questStats.toArray();
 
         return JSON.stringify({
             habits,
@@ -368,6 +462,7 @@ export class DatabaseServiceImpl {
             assistantLogs,
             tomorrowSuggestions,
             featureFlags,
+            questStats,
             exportDate: new Date().toISOString(),
         });
     }
@@ -407,6 +502,7 @@ export class DatabaseServiceImpl {
                 this.database.assistantLogs,
                 this.database.tomorrowSuggestions,
                 this.database.featureFlags,
+                this.database.questStats,
             ],
             async () => {
                 // Use validated/sanitized habits and tasks
@@ -448,6 +544,9 @@ export class DatabaseServiceImpl {
                 if (Array.isArray(data.featureFlags) && data.featureFlags.length <= 50) {
                     await this.database.featureFlags.bulkPut(data.featureFlags as FeatureFlag[]);
                 }
+                if (Array.isArray(data.questStats) && data.questStats.length <= 3650) {
+                    await this.database.questStats.bulkPut(data.questStats as QuestStats[]);
+                }
             }
         );
 
@@ -478,6 +577,11 @@ export const DatabaseServiceStatic = {
     getTomorrowSuggestion: (date: string) => databaseService.getTomorrowSuggestion(date),
     setFeatureFlag: (key: string, enabled: boolean) => databaseService.setFeatureFlag(key, enabled),
     getFeatureFlag: (key: string) => databaseService.getFeatureFlag(key),
+    getQuestStats: (date: string) => databaseService.getQuestStats(date),
+    getQuestStatsInRange: (startDate: string, endDate: string) =>
+        databaseService.getQuestStatsInRange(startDate, endDate),
+    upsertQuestStatsFromPlan: (date: string, plan: PlanOutput) =>
+        databaseService.upsertQuestStatsFromPlan(date, plan),
 
     // Habits operations
     getAllHabits: () => databaseService.getAllHabits(),
