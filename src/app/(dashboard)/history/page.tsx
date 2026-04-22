@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format, subDays, startOfWeek } from 'date-fns';
 import { DatabaseService } from '@/lib/database';
-import { DayHistory, PlanOutput } from '@/types';
+import { DayHistory, PlanOutput, QuestStats } from '@/types';
 import { isRegularPlan } from '@/types/scheduling';
 
 export default function HistoryPage() {
@@ -17,6 +17,8 @@ export default function HistoryPage() {
         totalGymMinutes: 0,
         bestStreak: 0,
         currentStreak: 0,
+        totalXP: 0,
+        bestXPStreak: 0,
     });
 
     const calculateBestStreak = useCallback((historyData: DayHistory[]): number => {
@@ -63,7 +65,11 @@ export default function HistoryPage() {
     }, []);
 
     const calculateWeeklyStats = useCallback(
-        (historyData: DayHistory[], plansData: PlanOutput[]) => {
+        (
+            historyData: DayHistory[],
+            plansData: PlanOutput[],
+            questStatsData: QuestStats[]
+        ) => {
             if (historyData.length === 0) return;
 
             const totalDays = historyData.length;
@@ -82,6 +88,15 @@ export default function HistoryPage() {
                 totalGymMinutes += isRegularPlan(plan.stats) ? plan.stats.gymMinutes : 0;
             });
 
+            const totalXP = questStatsData.reduce(
+                (sum: number, q: QuestStats) => sum + (q.xp ?? 0),
+                0
+            );
+            const bestXPStreak = questStatsData.reduce(
+                (max: number, q: QuestStats) => Math.max(max, q.streak ?? 0),
+                0
+            );
+
             setWeeklyStats({
                 totalDays,
                 avgHabitsCompleted: Math.round((totalHabits / totalDays) * 10) / 10,
@@ -89,6 +104,8 @@ export default function HistoryPage() {
                 totalGymMinutes,
                 bestStreak: calculateBestStreak(historyData),
                 currentStreak: calculateCurrentStreak(historyData),
+                totalXP,
+                bestXPStreak,
             });
         },
         [calculateBestStreak, calculateCurrentStreak]
@@ -113,9 +130,10 @@ export default function HistoryPage() {
 
             const historyData = await DatabaseService.getHistoryInRange(startDate, endDate);
             const plansData = await DatabaseService.getPlansInRange(startDate, endDate);
+            const questStats = await DatabaseService.getQuestStatsInRange(startDate, endDate);
 
             setHistory(historyData.sort((a, b) => b.date.localeCompare(a.date)));
-            calculateWeeklyStats(historyData, plansData);
+            calculateWeeklyStats(historyData, plansData, questStats);
         } finally {
             setIsLoading(false);
         }
@@ -191,7 +209,7 @@ export default function HistoryPage() {
                 </div>
                 {/* Skeleton Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3, 4, 5, 6].map(i => (
+                    {[1, 2, 3, 4, 5, 6, 7].map(i => (
                         <div
                             key={i}
                             className="rounded-xl p-6 animate-pulse"
@@ -334,6 +352,40 @@ export default function HistoryPage() {
                                 style={{ color: 'var(--color-charcoal)' }}
                             >
                                 {weeklyStats.totalDays}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    className="rounded-xl p-6"
+                    style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        boxShadow: 'var(--shadow-soft)',
+                    }}
+                >
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                style={{
+                                    background: 'rgba(196, 163, 90, 0.12)',
+                                    color: 'var(--color-charcoal)',
+                                }}
+                            >
+                                <span className="text-lg">⚔️</span>
+                            </div>
+                        </div>
+                        <div className="ml-4">
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-mist)' }}>
+                                XP Earned
+                            </p>
+                            <p className="text-2xl font-semibold" style={{ color: 'var(--color-charcoal)' }}>
+                                {weeklyStats.totalXP}
+                            </p>
+                            <p className="text-xs" style={{ color: 'var(--color-mist)' }}>
+                                Best XP streak: {weeklyStats.bestXPStreak} days
                             </p>
                         </div>
                     </div>
