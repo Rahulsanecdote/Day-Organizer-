@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { DatabaseService } from '@/lib/database';
 import type { ScheduledBlock } from '@/types';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 export default function EveningDebrief() {
     const [isOpen, setIsOpen] = useState(false);
@@ -47,13 +47,14 @@ export default function EveningDebrief() {
     const handleCloseDay = async () => {
         setIsProcessing(true);
         const today = format(new Date(), 'yyyy-MM-dd');
+        const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
         // Save suggestions for tomorrow
         if (incompleteItems.length > 0) {
             // logic to create tomorrowSuggestion
             await DatabaseService.saveTomorrowSuggestion({
-                id: `sugg-${today}`,
-                date: today, // date of suggestion creation
+                id: `sugg-${tomorrow}`,
+                date: tomorrow, // target date for suggestions
                 items: incompleteItems.map(i => ({
                     title: i.title,
                     reason: 'Incomplete from previous day',
