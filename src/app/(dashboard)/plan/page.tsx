@@ -693,6 +693,11 @@ export default function PlanPage() {
         const updatedPlan = { ...plan, blocks: updatedBlocks };
         setPlan(updatedPlan);
         await DataService.savePlan(updatedPlan);
+        try {
+            await DataService.upsertQuestStatsFromPlan(updatedPlan.date, updatedPlan);
+        } catch {
+            // Quest stats are optional and should not block completion updates.
+        }
     };
 
     const handleToggleLock = async (blockId: string) => {

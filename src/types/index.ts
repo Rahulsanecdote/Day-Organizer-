@@ -249,3 +249,16 @@ export interface FeatureFlag {
     key: string;
     enabled: boolean;
 }
+
+export interface QuestStats {
+    /**
+     * Use date as id for easy lookup.
+     * Example: id = "2026-04-22"
+     */
+    id: string;
+    date: string; // YYYY-MM-DD
+    xp: number;
+    streak: number;
+    completedCount: number;
+    updatedAt: number;
+}
