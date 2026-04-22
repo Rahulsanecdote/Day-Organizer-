@@ -1,8 +1,18 @@
-import { Command, ExecutionResult, TodayWorkArgs, TodayFixedArgs, AddHabitArgs, AddTaskArgs, PasteScheduleArgs } from './types';
+import {
+    Command,
+    ExecutionResult,
+    TodayWorkArgs,
+    TodayFixedArgs,
+    AddHabitArgs,
+    AddTaskArgs,
+    PasteScheduleArgs,
+    LockArgs,
+} from './types';
 import { DatabaseService } from '@/lib/database';
-import { Habit, Task, FixedEvent } from '@/types';
+import { Habit, Task, FixedEvent, PlanOutput, ScheduledBlock } from '@/types';
 import { parseTextInput } from '@/lib/scheduling-engine';
 import { format } from 'date-fns';
+import { isRegularPlan, isLateNightPlan } from '@/types/scheduling';
 
 export class AssistantExecutor {
     static async execute(command: Command): Promise<ExecutionResult> {
@@ -15,7 +25,15 @@ export class AssistantExecutor {
                 case 'PLAN':
                     // The actual planning is complex and usually requires client-side context (SchedulingEngine).
                     // Here we perform any DB prep, and return a success signal that the UI can use to trigger the actual plan generation.
-                    return { success: true, message: 'Ready to optimize plan. Triggering scheduling engine...', data: { action: 'TRIGGER_PLAN' } };
+                    return {
+                        success: true,
+                        message: 'Ready to optimize plan. Triggering scheduling engine...',
+                        data: { action: 'TRIGGER_PLAN' },
+                    };
+                case 'LOCK_BLOCK':
+                    return await this.handleLockToggle(command.args as LockArgs, true);
+                case 'UNLOCK_BLOCK':
+                    return await this.handleLockToggle(command.args as LockArgs, false);
                 case 'TODAY_WORK':
                     return await this.handleTodayWork(command.args as TodayWorkArgs);
                 case 'TODAY_FIXED':
@@ -28,9 +46,11 @@ export class AssistantExecutor {
                     return await this.handleAddTask(command.args as AddTaskArgs);
                 case 'EXPORT_JSON':
                     return await this.handleExport();
-                // Lock/Unlock would require accessing today's plan from DB and modifying the 'locked' property of a block
                 default:
-                    return { success: false, message: `Command type ${command.type} not yet implemented.` };
+                    return {
+                        success: false,
+                        message: `Command type ${command.type} not yet implemented.`,
+                    };
             }
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -52,9 +72,127 @@ export class AssistantExecutor {
     }
 
     private static async handleStatus(): Promise<ExecutionResult> {
-        // Get stats from today's plan/history
-        // Simplified for now
-        return { success: true, message: 'Status check not fully implemented (requires context).' };
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const plan = await DatabaseService.getPlan(today);
+
+        if (!plan) {
+            return {
+                success: false,
+                message: 'No plan found for today. Generate a plan first (type: plan).',
+            };
+        }
+
+        const blocks = Array.isArray(plan.blocks) ? plan.blocks : [];
+        const scheduledHabits = blocks.filter(b => b.type === 'habit').length;
+        const scheduledTasks = blocks.filter(b => b.type === 'task').length;
+        const scheduledGym = blocks.filter(b => b.type === 'gym').length;
+
+        const doneHabits = blocks.filter(b => b.type === 'habit' && b.completed).length;
+        const doneTasks = blocks.filter(b => b.type === 'task' && b.completed).length;
+        const doneGym = blocks.filter(b => b.type === 'gym' && b.completed).length;
+
+        const lockedCount = blocks.filter(b => b.locked).length;
+        const completedCount = blocks.filter(b => b.completed).length;
+
+        let statsLine = '';
+        if (plan.stats && isRegularPlan(plan.stats)) {
+            statsLine =
+                `Work: ${plan.stats.workHours}h | Gym: ${plan.stats.gymMinutes}m | ` +
+                `Habits: ${doneHabits}/${scheduledHabits} | Tasks: ${doneTasks}/${scheduledTasks} | ` +
+                `Focus: ${plan.stats.focusBlocks} | Free: ${plan.stats.freeTimeRemaining}m`;
+        } else if (plan.stats && isLateNightPlan(plan.stats)) {
+            statsLine =
+                `Late-night plan | Focus: ${plan.stats.totalFocusTimeMinutes}m | ` +
+                `Free: ${plan.stats.totalFreeTimeMinutes}m | Completion: ${Math.round(plan.stats.completionRate * 100)}%`;
+        } else {
+            statsLine =
+                `Habits: ${doneHabits}/${scheduledHabits} | Tasks: ${doneTasks}/${scheduledTasks} | Gym: ${doneGym}/${scheduledGym}`;
+        }
+
+        const uns = Array.isArray(plan.unscheduled) ? plan.unscheduled : [];
+        const unsTop = uns.slice(0, 3).map(u => u.title).join(', ');
+        const unsLine = uns.length
+            ? `Unscheduled (${uns.length}): ${unsTop}${uns.length > 3 ? '…' : ''}`
+            : 'Unscheduled: none';
+
+        const msg =
+            `Today (${today})\n${statsLine}\n` +
+            `Blocks done: ${completedCount}/${blocks.length} | Locked: ${lockedCount}\n${unsLine}`;
+
+        return { success: true, message: msg };
+    }
+
+    private static async handleLockToggle(
+        args: LockArgs,
+        locked: boolean
+    ): Promise<ExecutionResult> {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const plan = await DatabaseService.getPlan(today);
+
+        if (!plan) {
+            return {
+                success: false,
+                message: 'No plan found for today. Generate a plan first (type: plan).',
+            };
+        }
+
+        const needle = (args?.blockId ?? '').trim();
+        if (!needle) {
+            return {
+                success: false,
+                message: 'Missing blockId. Example: lock <blockId or title>',
+            };
+        }
+
+        const blocks = plan.blocks ?? [];
+        const matches: Array<{ index: number; block: ScheduledBlock }> = [];
+
+        // 1) exact id match
+        for (let i = 0; i < blocks.length; i++) {
+            const b = blocks[i];
+            if (b.id === needle) matches.push({ index: i, block: b });
+        }
+
+        // 2) fallback: title/id contains match (case-insensitive)
+        if (matches.length === 0) {
+            const n = needle.toLowerCase();
+            for (let i = 0; i < blocks.length; i++) {
+                const b = blocks[i];
+                if (b.title.toLowerCase().includes(n) || b.id.toLowerCase().includes(n)) {
+                    matches.push({ index: i, block: b });
+                }
+            }
+        }
+
+        if (matches.length === 0) {
+            return {
+                success: false,
+                message: `Block not found for "${needle}". Tip: use a unique title fragment or the exact block id.`,
+            };
+        }
+
+        if (matches.length > 1) {
+            const preview = matches
+                .slice(0, 5)
+                .map(m => `${m.block.title} (${m.block.start}-${m.block.end}) [${m.block.id}]`)
+                .join('; ');
+            return {
+                success: false,
+                message: `Ambiguous match for "${needle}". Be more specific. Matches: ${preview}${matches.length > 5 ? '…' : ''}`,
+            };
+        }
+
+        const target = matches[0];
+        const updatedBlocks = blocks.map((b, i) => (i === target.index ? { ...b, locked } : b));
+
+        const updatedPlan: PlanOutput = { ...plan, blocks: updatedBlocks };
+        await DatabaseService.savePlan(updatedPlan);
+
+        const state = locked ? 'Locked' : 'Unlocked';
+        return {
+            success: true,
+            message: `${state}: ${target.block.title} (${target.block.start}-${target.block.end})`,
+        };
     }
 
     private static async handleTodayWork(args: TodayWorkArgs): Promise<ExecutionResult> {
@@ -66,7 +204,9 @@ export class AssistantExecutor {
         if (!dailyInput) {
             // Create default if missing? Or error?
             // Let's assume we can fetch default prefs and scaffold
-            const prefs = await DatabaseService.getPreferences() || await DatabaseService.getDefaultPreferences();
+            const prefs =
+                (await DatabaseService.getPreferences()) ||
+                (await DatabaseService.getDefaultPreferences());
             dailyInput = {
                 date: today,
                 timezone,
@@ -74,8 +214,8 @@ export class AssistantExecutor {
                 fixedEvents: [],
                 constraints: {
                     buffersBetweenBlocksMin: prefs.defaultBuffers,
-                    protectDowntimeMin: prefs.defaultDowntimeProtection
-                }
+                    protectDowntimeMin: prefs.defaultDowntimeProtection,
+                },
             };
         }
 
@@ -88,7 +228,7 @@ export class AssistantExecutor {
             start: args.start,
             end: args.end,
             type: 'work',
-            locked: true
+            locked: true,
         });
 
         await DatabaseService.saveDailyInput(dailyInput);
@@ -102,13 +242,18 @@ export class AssistantExecutor {
 
         if (!dailyInput) {
             // Create default scaffold for now
-            const prefs = await DatabaseService.getPreferences() || await DatabaseService.getDefaultPreferences();
+            const prefs =
+                (await DatabaseService.getPreferences()) ||
+                (await DatabaseService.getDefaultPreferences());
             dailyInput = {
                 date: today,
                 timezone,
                 sleep: { start: prefs.defaultSleepStart, end: prefs.defaultSleepEnd },
                 fixedEvents: [],
-                constraints: { buffersBetweenBlocksMin: prefs.defaultBuffers, protectDowntimeMin: prefs.defaultDowntimeProtection }
+                constraints: {
+                    buffersBetweenBlocksMin: prefs.defaultBuffers,
+                    protectDowntimeMin: prefs.defaultDowntimeProtection,
+                },
             };
         }
 
@@ -117,11 +262,14 @@ export class AssistantExecutor {
             start: args.start,
             end: args.end,
             type: 'other', // Default type, could be refined
-            locked: true
+            locked: true,
         });
 
         await DatabaseService.saveDailyInput(dailyInput);
-        return { success: true, message: `Added fixed event: ${args.title} (${args.start}-${args.end})` };
+        return {
+            success: true,
+            message: `Added fixed event: ${args.title} (${args.start}-${args.end})`,
+        };
     }
 
     private static async handlePasteSchedule(text: string): Promise<ExecutionResult> {
@@ -136,13 +284,18 @@ export class AssistantExecutor {
         let dailyInput = await DatabaseService.getDailyInput(today, timezone);
 
         if (!dailyInput) {
-            const prefs = await DatabaseService.getPreferences() || await DatabaseService.getDefaultPreferences();
+            const prefs =
+                (await DatabaseService.getPreferences()) ||
+                (await DatabaseService.getDefaultPreferences());
             dailyInput = {
                 date: today,
                 timezone,
                 sleep: { start: prefs.defaultSleepStart, end: prefs.defaultSleepEnd },
                 fixedEvents: [],
-                constraints: { buffersBetweenBlocksMin: prefs.defaultBuffers, protectDowntimeMin: prefs.defaultDowntimeProtection }
+                constraints: {
+                    buffersBetweenBlocksMin: prefs.defaultBuffers,
+                    protectDowntimeMin: prefs.defaultDowntimeProtection,
+                },
             };
         }
 
@@ -153,7 +306,7 @@ export class AssistantExecutor {
                 start: item.start,
                 end: item.end,
                 type: item.type as FixedEvent['type'],
-                locked: true
+                locked: true,
             });
         }
 
@@ -174,7 +327,7 @@ export class AssistantExecutor {
             energyLevel: 'medium',
             isActive: true,
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
         };
         await DatabaseService.saveHabit(habit);
         return { success: true, message: `Added habit: ${args.name}` };
@@ -193,7 +346,7 @@ export class AssistantExecutor {
             isActive: true,
             isCompleted: false,
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
         };
         await DatabaseService.saveTask(task);
         return { success: true, message: `Added task: ${args.title}` };
