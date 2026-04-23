@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, parse, differenceInMinutes, addMinutes } from 'date-fns';
+import { DatabaseService } from '@/lib/database';
 import { DataService } from '@/lib/sync/DataService';
 import { logger } from '@/lib/logger';
 import { NotificationService } from '@/lib/notifications';
@@ -694,7 +695,10 @@ export default function PlanPage() {
         setPlan(updatedPlan);
         await DataService.savePlan(updatedPlan);
         try {
-            await DataService.upsertQuestStatsFromPlan(updatedPlan.date, updatedPlan);
+            const isQuestModeEnabled = await DatabaseService.getFeatureFlag('enableQuestMode');
+            if (isQuestModeEnabled) {
+                await DataService.upsertQuestStatsFromPlan(updatedPlan.date, updatedPlan);
+            }
         } catch {
             // Quest stats are optional and should not block completion updates.
         }

@@ -10,6 +10,7 @@ export default function HistoryPage() {
     const [history, setHistory] = useState<DayHistory[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'all'>('week');
     const [isLoading, setIsLoading] = useState(true);
+    const [isQuestModeEnabled, setIsQuestModeEnabled] = useState(false);
     const [weeklyStats, setWeeklyStats] = useState({
         totalDays: 0,
         avgHabitsCompleted: 0,
@@ -120,10 +121,15 @@ export default function HistoryPage() {
                     startDate = format(subDays(new Date(), 365), 'yyyy-MM-dd');
             }
 
+            const questModeEnabled = await DatabaseService.getFeatureFlag('enableQuestMode');
+            setIsQuestModeEnabled(questModeEnabled);
+
             const [historyData, plansData, questStatsData] = await Promise.all([
                 DatabaseService.getHistoryInRange(startDate, endDate),
                 DatabaseService.getPlansInRange(startDate, endDate),
-                DatabaseService.getQuestStatsInRange(startDate, endDate),
+                questModeEnabled
+                    ? DatabaseService.getQuestStatsInRange(startDate, endDate)
+                    : Promise.resolve([] as QuestStats[]),
             ]);
 
             setHistory(historyData.sort((a, b) => b.date.localeCompare(a.date)));
@@ -203,7 +209,7 @@ export default function HistoryPage() {
                 </div>
                 {/* Skeleton Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                    {[1, 2, 3, 4, 5, 6, ...(isQuestModeEnabled ? [7] : [])].map(i => (
                         <div
                             key={i}
                             className="rounded-xl p-6 animate-pulse"
@@ -351,45 +357,47 @@ export default function HistoryPage() {
                     </div>
                 </div>
 
-                <div
-                    className="rounded-xl p-6"
-                    style={{
-                        background: 'var(--color-surface)',
-                        border: '1px solid var(--color-border)',
-                        boxShadow: 'var(--shadow-soft)',
-                    }}
-                >
-                    <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                            <div
-                                className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                style={{
-                                    background: 'rgba(196, 163, 90, 0.12)',
-                                    color: 'var(--color-charcoal)',
-                                }}
-                            >
-                                <span className="text-lg">⚔️</span>
+                {isQuestModeEnabled && (
+                    <div
+                        className="rounded-xl p-6"
+                        style={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                            boxShadow: 'var(--shadow-soft)',
+                        }}
+                    >
+                        <div className="flex items-center">
+                            <div className="flex-shrink-0">
+                                <div
+                                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                    style={{
+                                        background: 'rgba(196, 163, 90, 0.12)',
+                                        color: 'var(--color-charcoal)',
+                                    }}
+                                >
+                                    <span className="text-lg">⚔️</span>
+                                </div>
+                            </div>
+                            <div className="ml-4">
+                                <p
+                                    className="text-sm font-medium"
+                                    style={{ color: 'var(--color-mist)' }}
+                                >
+                                    XP Earned
+                                </p>
+                                <p
+                                    className="text-2xl font-semibold"
+                                    style={{ color: 'var(--color-charcoal)' }}
+                                >
+                                    {weeklyStats.totalXP}
+                                </p>
+                                <p className="text-xs" style={{ color: 'var(--color-mist)' }}>
+                                    Best XP streak: {weeklyStats.bestXPStreak} days
+                                </p>
                             </div>
                         </div>
-                        <div className="ml-4">
-                            <p
-                                className="text-sm font-medium"
-                                style={{ color: 'var(--color-mist)' }}
-                            >
-                                XP Earned
-                            </p>
-                            <p
-                                className="text-2xl font-semibold"
-                                style={{ color: 'var(--color-charcoal)' }}
-                            >
-                                {weeklyStats.totalXP}
-                            </p>
-                            <p className="text-xs" style={{ color: 'var(--color-mist)' }}>
-                                Best XP streak: {weeklyStats.bestXPStreak} days
-                            </p>
-                        </div>
                     </div>
-                </div>
+                )}
 
                 <div
                     className="rounded-xl p-6"
